@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>旅行定制统一工作台</title>
+<style>
+:root{--bg:#f4f1ea;--panel:#fffdf8;--ink:#1f2933;--muted:#6b7280;--line:#d8d0c3;--accent:#b4532a;--soft:#f0e5d6;--ok:#1f7a4d;--warn:#b7791f}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Noto Sans SC","PingFang SC",Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55}
+header{background:#171717;color:#fff;padding:14px 22px;border-bottom:3px solid var(--accent);display:flex;justify-content:space-between;gap:12px;align-items:center}
+header h1{font-size:18px;font-weight:700} header span{font-size:12px;color:#e7c8b7;letter-spacing:.08em}
+.layout{display:grid;grid-template-columns:390px 1fr;min-height:calc(100vh - 57px)}
+.input{background:var(--panel);border-right:1px solid var(--line);padding:18px;overflow:auto}
+.outputs{padding:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;align-content:start}
+.block{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.block.full{grid-column:1/-1}
+.title{font-size:13px;font-weight:800;color:var(--accent);letter-spacing:.08em;margin-bottom:10px;text-transform:uppercase;border-bottom:1px solid var(--soft);padding-bottom:7px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.row.one{grid-template-columns:1fr}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px}
+input,select,textarea{width:100%;border:1px solid var(--line);background:#faf7f1;border-radius:5px;padding:8px 9px;font-size:14px;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);background:#fff}
+textarea{resize:vertical;min-height:58px}
+button{border:none;border-radius:5px;padding:9px 12px;cursor:pointer;font-weight:700}
+.primary{background:var(--accent);color:#fff;width:100%;font-size:15px;margin-top:8px}.secondary{background:var(--soft);color:var(--ink);border:1px solid var(--line)}
+.mini-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}.mini-actions button{font-size:12px;padding:7px 10px}
+.cost-item{display:grid;grid-template-columns:1.1fr .8fr .7fr 34px;gap:6px;margin-bottom:6px;align-items:center}
+.cost-item.ticket{grid-template-columns:1.1fr .65fr .55fr .55fr 34px}
+.cost-item button{padding:7px;background:#f4d8cc;color:#8a341b}
+.add-line{display:grid;grid-template-columns:1.1fr .8fr .7fr 64px;gap:6px;margin-top:7px}
+.add-line.ticket{grid-template-columns:1.2fr .65fr .55fr .55fr 64px}
+.hint{font-size:12px;color:var(--muted);background:#fff8ec;border:1px solid #ead7bb;border-radius:6px;padding:8px;margin:8px 0}
+.day{border:1px solid var(--line);border-radius:7px;margin-bottom:9px;overflow:hidden;background:#fff}
+.day h3{background:#f7efe4;color:var(--accent);font-size:15px;padding:8px 10px;display:flex;justify-content:space-between;gap:8px}
+.day .body{padding:9px 11px;font-size:14px}.day p{margin-bottom:5px}.badge{font-size:11px;border-radius:99px;padding:2px 8px;background:#e8f5ee;color:var(--ok);white-space:nowrap}.badge.warn{background:#fff4d8;color:var(--warn)}
+.quote-total{background:#171717;color:#fff;border-radius:7px;padding:12px;margin-top:10px}.quote-total b{font-size:24px}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{border-bottom:1px dashed var(--line);padding:7px;text-align:left}td.num{text-align:right;font-variant-numeric:tabular-nums}
+.copybox{white-space:pre-wrap;background:#faf7f1;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:14px;min-height:80px}
+@media(max-width:980px){.layout{grid-template-columns:1fr}.input{border-right:none;border-bottom:1px solid var(--line)}.outputs{grid-template-columns:1fr}}
+@media print{header,.input,.mini-actions{display:none}.layout{display:block}.outputs{display:block;padding:0}.block{break-inside:avoid;margin-bottom:12px;box-shadow:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>旅行定制统一工作台</h1>
+  <span>一次输入 · 行程 + 报价 + 成交文案</span>
+</header>
+<div class="layout">
+  <section class="input">
+    <div class="title">① 客户输入区</div>
+    <div class="row">
+      <div><label>目的地</label><input id="destination" value="意大利" placeholder="如：法国 / 意大利 / 日本"></div>
+      <div><label>天数</label><input id="days" type="number" min="1" value="7"></div>
+    </div>
+    <div class="row">
+      <div><label>出发日期</label><input id="startDate" type="date"></div>
+      <div><label>人数</label><input id="people" type="number" min="1" value="2"></div>
+    </div>
+    <div class="row">
+      <div><label>客户类型</label><select id="customer" onchange="adjustByClientType(this.value)"><option selected>高端</option><option>亲子</option><option>情侣</option><option>性价比</option></select></div>
+      <div><label>预算</label><input id="budget" placeholder="如：8万以内"></div>
+    </div>
+    <div class="row one"><label>行程线路输入（例：罗马 → 佛罗伦萨 → 威尼斯）</label><textarea id="routeLine" placeholder="罗马 → 佛罗伦萨 → 威尼斯">罗马 → 佛罗伦萨 → 威尼斯</textarea></div>
+    <div class="mini-actions"><button class="secondary" onclick="autoGenerateFromRoute($('routeLine').value)">根据线路自动生成报价</button><button class="secondary" onclick="generateAll()">刷新全部输出</button></div>
+    <div class="row one"><label>城市 / 路线顺序（用 /、逗号或换行分隔）</label><textarea id="cities">罗马 / 佛罗伦萨 / 威尼斯</textarea></div>
+    <div class="row one"><label>必打卡景点（每行一个，可写“城市-景点”）</label><textarea id="mustSee">罗马-斗兽场
+罗马-万神殿
+佛罗伦萨-乌菲兹美术馆
+威尼斯-圣马可广场
+威尼斯-贡多拉</textarea></div>
+    <div class="row">
+      <div><label>节奏偏好</label><select id="pace"><option>自动判断</option><option>轻松</option><option selected>标准</option><option>紧凑</option></select></div>
+      <div><label>用车季节</label><select id="season"><option value="off">淡季</option><option value="peak">旺季</option></select></div>
+    </div>
+    <div class="hint">报价保持原逻辑：人民币 = 欧元 × 1.35 × 8.3。</div>
+
+    <div class="title">报价费用输入</div>
+    <label>包车费用</label><div id="carList"></div>
+    <div class="add-line"><input id="carName" placeholder="城市/说明"><input id="carEur" type="number" placeholder="€/天"><input id="carDays" type="number" value="1" min="1"><button class="secondary" onclick="addCost('car')">添加</button></div>
+    <label style="margin-top:10px">接送机</label><div id="transferList"></div>
+    <div class="add-line"><input id="transferName" placeholder="城市/接送机"><input id="transferEur" type="number" placeholder="€/次"><input id="transferQty" type="number" value="1" min="1"><button class="secondary" onclick="addCost('transfer')">添加</button></div>
+    <label style="margin-top:10px">门票</label><div id="ticketList"></div>
+    <div class="add-line"><select id="ticketSelect"><option value="">从门票价格库选择</option></select><button class="secondary" onclick="addTicketFromDB()">选入门票</button></div>
+    <div class="add-line ticket"><input id="ticketName" placeholder="景点"><select id="ticketUnit"><option value="person">€/人</option><option value="total">€/总价</option></select><input id="ticketEur" type="number" placeholder="€"><select id="ticketCat"><option>必打卡</option><option>可选</option><option>不含</option></select><button class="secondary" onclick="addCost('ticket')">添加</button></div>
+    <div class="row" style="margin-top:10px">
+      <div><label>定制师服务费（固定 ¥100/人/天，不加价）</label><input id="serviceRate" type="number" value="100" readonly></div>
+      <div><label>当前加价系数</label><input id="markup" type="number" value="1.35" step="0.01" readonly></div>
+    </div>
+    <label style="margin-top:10px">空返/调度费</label><div id="deadheadList"></div>
+    <div class="add-line"><input id="deadheadName" placeholder="如：威尼斯 → 返回"><input id="deadheadEur" type="number" placeholder="€/段"><input id="deadheadQty" type="number" value="1" min="1"><button class="secondary" onclick="addCost('deadhead')">添加</button></div>
+    <label style="margin-top:10px">司机住宿补贴</label><div id="lodgingList"></div>
+    <div class="add-line"><input id="lodgingName" placeholder="如：跨城司机住宿补贴"><input id="lodgingEur" type="number" placeholder="€/晚"><input id="lodgingQty" type="number" value="1" min="1"><button class="secondary" onclick="addCost('lodging')">添加</button></div>
+    <label style="margin-top:10px">酒店（人民币成本 × 1.15）</label><div id="hotelList"></div>
+    <div class="add-line"><input id="hotelName" placeholder="如：全程酒店"><input id="hotelCny" type="number" placeholder="¥成本/项"><input id="hotelQty" type="number" value="1" min="1"><button class="secondary" onclick="addCost('hotel')">添加</button></div>
+    <label style="margin-top:10px">机票（人民币成本 × 1.15）</label><div id="flightList"></div>
+    <div class="add-line"><input id="flightName" placeholder="如：国际机票/内陆段"><input id="flightCny" type="number" placeholder="¥成本/项"><input id="flightQty" type="number" value="1" min="1"><button class="secondary" onclick="addCost('flight')">添加</button></div>
+    <div class="row" style="margin-top:10px"><div><label>报价备注</label><input id="quoteNote" placeholder="含税，不含小费等"></div></div>
+    <button class="primary" onclick="generateAll()">一键生成全部内容</button>
+    <div class="mini-actions"><button class="secondary" onclick="copyAll()">复制全部</button><button class="secondary" onclick="exportWord()">导出 Word</button><button class="secondary" onclick="window.print()">导出 PDF</button><button class="secondary" onclick="clearAll()">清空</button></div>
+  </section>
+
+  <main class="outputs">
+    <section class="block full"><div class="title">② 行程输出区</div><div id="itineraryOut" class="hint">填写左侧信息后，点击一键生成。</div></section>
+    <section class="block"><div class="title">③ 报价输出区</div><div id="quoteOut" class="hint">报价会使用原公式自动计算。</div></section>
+    <section class="block"><div class="title">④ 文案输出区</div><div id="copyOut" class="hint">卖点、客户话术、小红书标题会同步生成。</div></section>
+  </main>
+</div>
+
+<script>
+'use strict';
+const DEFAULT_MARKUP = 1.35;
+const RMB_MARKUP = 1.15;
+const $ = id => document.getElementById(id);
+const n = id => parseFloat($(id).value) || 0;
+const esc = s => String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const split = s => String(s||'').split(/[\n/、,，]+/).map(x=>x.trim()).filter(Boolean);
+const fmt = v => '¥ ' + Math.round(v).toLocaleString('zh-CN');
+let state = {car:[], transfer:[], ticket:[], deadhead:[], lodging:[], hotel:[], flight:[], autoRoute:''};
+
+const DB = {
+  '意大利':{cities:['罗马','佛罗伦萨','威尼斯','米兰','那不勒斯','阿玛菲'], must:['斗兽场','万神殿','梵蒂冈博物馆','乌菲兹美术馆','圣母百花大教堂','圣马可广场','贡多拉','总督宫'], pitch:'古迹、艺术、水城和美食结合，适合做高客单私家定制。'},
+  '法国':{cities:['巴黎','尼斯','普罗旺斯','波尔多','里昂'], must:['卢浮宫','埃菲尔铁塔','凡尔赛宫','奥赛博物馆','凯旋门','蒙马特','埃兹','摩纳哥'], pitch:'艺术、酒庄、南法度假和购物都能打，成交记忆点强。'},
+  '瑞士':{cities:['苏黎世','卢塞恩','因特拉肯','采尔马特','日内瓦'], must:['少女峰','琉森湖','瑞吉山','马特洪峰','西庸城堡'], pitch:'自然风光价值感强，适合强调舒适包车和少折腾。'},
+  '日本':{cities:['东京','京都','大阪','奈良','箱根'], must:['浅草寺','涩谷','秋叶原','金阁寺','伏见稻荷','道顿堀','大阪城','奈良公园'], pitch:'城市、古都、美食和温泉结合，适合亲子/蜜月/首次到访。'}
+};
+const CITY_PRICE = {
+  '罗马':450,'佛罗伦萨':430,'威尼斯':480,'米兰':450,'那不勒斯':500,'阿玛菲':650,
+  '巴黎':400,'尼斯':550,'普罗旺斯':520,'波尔多':500,'里昂':450,
+  '苏黎世':450,'卢塞恩':450,'因特拉肯':500,'采尔马特':520,'日内瓦':450,
+  '东京':520,'京都':500,'大阪':480,'奈良':460,'箱根':550
+};
+const DEADHEAD_PRICE = {
+  '罗马':250,'佛罗伦萨':260,'威尼斯':300,'米兰':260,'那不勒斯':300,'阿玛菲':380,
+  '巴黎':280,'尼斯':320,'苏黎世':320,'因特拉肯':350,'东京':300,'京都':280,'大阪':260
+};
+const FAMILY_TICKET_SUGGEST = {
+  '意大利':['儿童友好讲解/导览','贡多拉体验'],
+  '法国':['塞纳河游船','亲子博物馆讲解'],
+  '日本':['主题乐园/亲子体验','和服体验'],
+  '瑞士':['山地缆车体验','湖区游船']
+};
+const CAR_PRICE_DB = [{"name":"巴黎（市区）","benzOff":350.0,"benzPeak":350.0,"smallOff":300.0,"smallPeak":300.0,"note":""},{"name":"巴黎（出城）","benzOff":400.0,"benzPeak":400.0,"smallOff":350.0,"smallPeak":350.0,"note":"莫奈花园 吉维尼小镇 枫丹白露 迪士尼均算出城"},{"name":"南法尼斯马赛","benzOff":500.0,"benzPeak":550.0,"smallOff":420.0,"smallPeak":450.0,"note":"阿维尼翁-尼斯 空返按照300欧；有圣十字湖行程 +100欧"},{"name":"意大利常规城市","benzOff":400.0,"benzPeak":450.0,"smallOff":350.0,"smallPeak":400.0,"note":"罗马 米兰 佛罗伦萨 威尼斯 （科莫湖 五渔村 被扣车机率非常大 解决办法 1.安排ncc 2.停到安全的地方 客人打车进"},{"name":"罗马ncc","benzOff":550.0,"benzPeak":600.0,"smallOff":null,"smallPeak":null,"note":"市区100公里"},{"name":"出城","benzOff":600.0,"benzPeak":650.0,"smallOff":null,"smallPeak":null,"note":"住宿150欧/晚上"},{"name":"米兰ncc","benzOff":600.0,"benzPeak":650.0,"smallOff":null,"smallPeak":null,"note":""},{"name":"出城","benzOff":750.0,"benzPeak":null,"smallOff":null,"smallPeak":null,"note":"住宿150欧/晚上"},{"name":"南意","benzOff":500.0,"benzPeak":550.0,"smallOff":450.0,"smallPeak":500.0,"note":"行程涉及到阿马尔菲 那不勒斯 波西塔诺 索伦托 等"},{"name":"南意 ncc","benzOff":650.0,"benzPeak":700.0,"smallOff":null,"smallPeak":null,"note":"住宿补贴 按照150欧/晚上"},{"name":"西西里","benzOff":500.0,"benzPeak":500.0,"smallOff":500.0,"smallPeak":500.0,"note":"5坐车价格与奔驰商务车价格一样"},{"name":"德国常规城市","benzOff":400.0,"benzPeak":450.0,"smallOff":350.0,"smallPeak":400.0,"note":"慕尼黑 柏林 法兰 科隆 杜塞 （如遇大展 价格现询）"},{"name":"汉堡 不来梅 斯图加特 汉诺威","benzOff":450.0,"benzPeak":450.0,"smallOff":400.0,"smallPeak":400.0,"note":"（如遇大展 价格现询）如当地无导游 需周边城市外派"},{"name":"维也纳","benzOff":400.0,"benzPeak":450.0,"smallOff":380.0,"smallPeak":400.0,"note":""},{"name":"瑞士（苏黎世/日内瓦）","benzOff":400.0,"benzPeak":450.0,"smallOff":400.0,"smallPeak":450.0,"note":"没有9坐车（均为7-8座） 如果需要9座 需从米兰派车 +空返；且日内瓦当地用车非常少，旺季需要按照苏黎世派车报价来算.日内瓦用车按照450欧"},{"name":"阿姆斯特丹","benzOff":450.0,"benzPeak":450.0,"smallOff":400.0,"smallPeak":400.0,"note":""},{"name":"布鲁塞尔","benzOff":450.0,"benzPeak":500.0,"smallOff":400.0,"smallPeak":450.0,"note":""},{"name":"希腊 雅典","benzOff":400.0,"benzPeak":450.0,"smallOff":400.0,"smallPeak":400.0,"note":""},{"name":"希腊 圣托里尼","benzOff":500.0,"benzPeak":550.0,"smallOff":450.0,"smallPeak":480.0,"note":"8小时用车   克里特 扎金索斯  米克诺斯岛 均无奔驰商务用车；普通商务7-9座 不指定车型 导游一般从雅典飞过去"},{"name":"伦敦","benzOff":320.0,"benzPeak":400.0,"smallOff":300.0,"smallPeak":350.0,"note":"伦敦-爱丁堡 空返算1.5个"},{"name":"爱丁堡","benzOff":350.0,"benzPeak":420.0,"smallOff":320.0,"smallPeak":380.0,"note":""},{"name":"都柏林","benzOff":500.0,"benzPeak":550.0,"smallOff":450.0,"smallPeak":500.0,"note":"住宿120欧/晚"},{"name":"哥本哈根","benzOff":450.0,"benzPeak":450.0,"smallOff":400.0,"smallPeak":400.0,"note":"欧登塞行程 +100欧"},{"name":"斯德哥尔摩","benzOff":450.0,"benzPeak":450.0,"smallOff":400.0,"smallPeak":400.0,"note":""},{"name":"奥斯陆","benzOff":550.0,"benzPeak":600.0,"smallOff":500.0,"smallPeak":550.0,"note":""},{"name":"挪威 卑尔根","benzOff":700.0,"benzPeak":700.0,"smallOff":650.0,"smallPeak":650.0,"note":"建议从其他城市连线 车价会便宜一些  当地车导资源有限 ；司导住宿按照150欧/晚"},{"name":"冰岛","benzOff":700.0,"benzPeak":700.0,"smallOff":600.0,"smallPeak":650.0,"note":"尽量不推奔驰商务 容易被查 司导住宿按照150欧/晚；\n接送机按照300欧/次  圣诞节 春节 +50-100欧/天"},{"name":"特罗姆瑟","benzOff":750.0,"benzPeak":750.0,"smallOff":650.0,"smallPeak":650.0,"note":""},{"name":"罗瓦涅米","benzOff":650.0,"benzPeak":650.0,"smallOff":600.0,"smallPeak":600.0,"note":"圣诞节 新年 那几天每天+50欧-100欧，异地住宿150欧/晚"}];
+const TICKET_DB = [{"co":"法国","ci":"巴黎","n":"卢浮宫","p":1,"d":"1欧"},{"co":"法国","ci":"巴黎","n":"凡尔赛宫","p":35,"d":"35欧"},{"co":"法国","ci":"巴黎","n":"巴黎歌剧院","p":25,"d":"25欧"},{"co":"法国","ci":"巴黎","n":"塞纳河游船","p":6.5,"d":"6欧"},{"co":"法国","ci":"巴黎","n":"奥赛博物馆","p":16,"d":"16欧"},{"co":"法国","ci":"巴黎","n":"东京宫","p":12,"d":"12欧"},{"co":"法国","ci":"巴黎","n":"埃菲尔铁塔","p":0,"d":"免费"},{"co":"法国","ci":"巴黎","n":"蓬皮杜艺术中心","p":15,"d":"15欧"},{"co":"法国","ci":"巴黎","n":"巴黎博物馆通票","p":66,"d":"66欧"},{"co":"法国","ci":"巴黎","n":"枫丹白露宫","p":14,"d":"14欧"},{"co":"法国","ci":"巴黎","n":"毕加索美术馆","p":14,"d":"14欧"},{"co":"法国","ci":"巴黎","n":"罗丹美术馆","p":14,"d":"14欧"},{"co":"法国","ci":"巴黎","n":"橘园美术馆","p":12.5,"d":"12欧"},{"co":"法国","ci":"巴黎","n":"迪士尼乐园","p":119,"d":"119欧"},{"co":"法国","ci":"巴黎","n":"疯马秀","p":20,"d":"20欧"},{"co":"法国","ci":"巴黎","n":"文森城堡","p":9.5,"d":"10欧"},{"co":"法国","ci":"巴黎","n":"圣米歇尔山","p":10,"d":"10欧"},{"co":"法国","ci":"巴黎","n":"昂布瓦斯城堡","p":15.2,"d":"15欧"},{"co":"法国","ci":"巴黎","n":"舍农索城堡","p":19,"d":"19欧"},{"co":"法国","ci":"巴黎","n":"布鲁瓦王家城堡","p":9.5,"d":"10欧"},{"co":"法国","ci":"巴黎","n":"香波城堡","p":31,"d":"31欧"},{"co":"法国","ci":"巴黎","n":"雪瓦尼城堡","p":14,"d":"14欧"},{"co":"法国","ci":"巴黎","n":"叙利城堡","p":8,"d":"8欧"},{"co":"法国","ci":"巴黎","n":"荣军院","p":17,"d":"17欧"},{"co":"法国","ci":"巴黎","n":"尚蒂伊城堡","p":20,"d":"20欧"},{"co":"法国","ci":"巴黎","n":"沃子爵城堡","p":20,"d":"20欧"},{"co":"法国","ci":"巴黎","n":"圣心大教堂","p":0,"d":"免费"},{"co":"法国","ci":"巴黎","n":"波尔多波亚克酒庄","p":25,"d":"25欧"},{"co":"法国","ci":"巴黎","n":"莫奈花园","p":13.5,"d":"14欧"},{"co":"法国","ci":"巴黎","n":"圣礼拜堂","p":22,"d":"22欧"},{"co":"法国","ci":"巴黎","n":"巴黎古监狱","p":13,"d":"13欧"},{"co":"意大利","ci":"罗马","n":"罗马斗兽场","p":18,"d":"18欧"},{"co":"意大利","ci":"罗马","n":"梵蒂冈博物馆+西斯廷","p":25,"d":"25欧"},{"co":"意大利","ci":"罗马","n":"圣彼得大教堂","p":22,"d":"22欧"},{"co":"意大利","ci":"罗马","n":"圣天使城堡","p":13,"d":"13欧"},{"co":"意大利","ci":"罗马","n":"美第奇别墅","p":14,"d":"14欧"},{"co":"意大利","ci":"罗马","n":"万神殿","p":5,"d":"5欧"},{"co":"意大利","ci":"佛罗伦萨","n":"博尔盖塞美术馆","p":15,"d":"15欧"},{"co":"意大利","ci":"佛罗伦萨","n":"巴杰罗美术馆 Bargello Museums","p":10,"d":"10欧"},{"co":"意大利","ci":"佛罗伦萨","n":"圣弥额尔教堂 Orsanmichele","p":8,"d":"8欧"},{"co":"意大利","ci":"佛罗伦萨","n":"旧宫Piazza della SignoriavVecchio","p":12.5,"d":"12欧"},{"co":"意大利","ci":"佛罗伦萨","n":"学院美术馆","p":20,"d":"20欧"},{"co":"意大利","ci":"佛罗伦萨","n":"乌菲兹美术馆","p":29,"d":"29欧"},{"co":"意大利","ci":"佛罗伦萨","n":"圣母百花大教堂","p":15,"d":"15欧"},{"co":"意大利","ci":"佛罗伦萨","n":"天空之城","p":2,"d":"2欧"},{"co":"意大利","ci":"佛罗伦萨","n":"达芬奇互动博物馆","p":8.3,"d":"8欧"},{"co":"意大利","ci":"那不勒斯","n":"卡布里岛（往返）","p":91,"d":"91欧"},{"co":"意大利","ci":"那不勒斯","n":"那不勒斯考古博物馆","p":25,"d":"25欧"},{"co":"意大利","ci":"那不勒斯","n":"那不勒斯皇宫","p":10,"d":"10欧"},{"co":"意大利","ci":"那不勒斯","n":"圣塞维诺小堂","p":10,"d":"10欧"},{"co":"意大利","ci":"那不勒斯","n":"圣埃莫堡","p":5,"d":"5欧"},{"co":"意大利","ci":"那不勒斯","n":"庞贝古城","p":19,"d":"19欧"},{"co":"意大利","ci":"那不勒斯","n":"那不勒斯主教堂","p":0,"d":"免费"},{"co":"意大利","ci":"那不勒斯","n":"维苏威火山","p":12,"d":"12欧"},{"co":"意大利","ci":"博洛尼亚","n":"兰博基尼博物馆（博洛尼亚）","p":23,"d":"23欧"},{"co":"意大利","ci":"博洛尼亚","n":"帕加尼博物馆+工厂（博洛尼亚）","p":35,"d":"35欧"},{"co":"意大利","ci":"米兰","n":"最后的晚餐【感恩圣母堂】","p":70,"d":"70欧"},{"co":"意大利","ci":"米兰","n":"米兰大教堂登顶","p":10,"d":"10欧"},{"co":"意大利","ci":"米兰","n":"圣西罗球场","p":30.6,"d":"31欧"},{"co":"意大利","ci":"米兰","n":"布蕾拉画廊","p":15,"d":"15欧"},{"co":"意大利","ci":"米兰","n":"斯卡拉大剧院","p":15,"d":"15欧"},{"co":"意大利","ci":"比萨","n":"比萨斜塔","p":20,"d":"20欧"},{"co":"意大利","ci":"威尼斯","n":"彩虹岛+玻璃岛","p":24,"d":"24欧"},{"co":"意大利","ci":"威尼斯","n":"总督宫","p":30,"d":"30欧"},{"co":"意大利","ci":"威尼斯","n":"圣马可教堂","p":10,"d":"10欧"},{"co":"意大利","ci":"威尼斯","n":"贡多拉游船","p":90,"d":"90欧"},{"co":"意大利","ci":"五渔村","n":"五渔村小火车","p":30,"d":"30欧"},{"co":"瑞士","ci":"苏黎世","n":"少女峰","p":169,"d":"169欧"},{"co":"瑞士","ci":"苏黎世","n":"fisrt 山 往返缆车","p":80,"d":"80欧"},{"co":"瑞士","ci":"苏黎世","n":"因特拉肯滑翔伞","p":180,"d":"180欧"},{"co":"瑞士","ci":"苏黎世","n":"铁力市 纸质票","p":60,"d":"60欧"},{"co":"瑞士","ci":"苏黎世","n":"皮拉图斯","p":78,"d":"78欧"},{"co":"瑞士","ci":"苏黎世","n":"雪朗峰 （纸票/电子票）","p":90,"d":"90欧"},{"co":"瑞士","ci":"苏黎世","n":"哈德坤平台（电子票）","p":38,"d":"38欧"},{"co":"瑞士","ci":"苏黎世","n":"金色山口（电子票）","p":56.6,"d":"57欧"},{"co":"瑞士","ci":"苏黎世","n":"盖尔默往返缆车","p":42,"d":"42欧"},{"co":"瑞士","ci":"苏黎世","n":"琉森湖游船","p":20,"d":"20欧"},{"co":"瑞士","ci":"苏黎世","n":"冰川列车 安德玛特-库尔","p":130,"d":"130欧"},{"co":"瑞士","ci":"苏黎世","n":"冰川3000","p":89,"d":"89欧"},{"co":"瑞士","ci":"苏黎世","n":"瑞吉（电子票）","p":62,"d":"62欧"},{"co":"瑞士","ci":"苏黎世","n":"马特洪峰","p":1,"d":"1欧"},{"co":"瑞士","ci":"苏黎世","n":"塔什-采尔马特 往返交通","p":20,"d":"20欧"},{"co":"瑞士","ci":"苏黎世","n":"日内瓦圣彼得大教堂","p":0,"d":"免费"},{"co":"瑞士","ci":"苏黎世","n":"百达翡丽博物馆","p":10,"d":"10欧"},{"co":"瑞士","ci":"苏黎世","n":"日内瓦湖游船","p":25,"d":"25欧"},{"co":"瑞士","ci":"苏黎世","n":"奥林匹克博物馆","p":23,"d":"23欧"},{"co":"瑞士","ci":"苏黎世","n":"西庸城堡","p":15,"d":"15欧"},{"co":"瑞士","ci":"苏黎世","n":"艾格峰","p":64,"d":"64欧"},{"co":"瑞士","ci":"苏黎世","n":"瑞吉山","p":74,"d":"74欧"},{"co":"瑞士","ci":"苏黎世","n":"布里恩茨蒸汽火车","p":104,"d":"104欧"},{"co":"瑞士","ci":"苏黎世","n":"苏黎世美术馆","p":24,"d":"24欧"},{"co":"瑞士","ci":"苏黎世","n":"拉沃小火车","p":8,"d":"8欧"},{"co":"瑞士","ci":"苏黎世","n":"瑞士莲巧克力博物馆","p":17,"d":"17欧"},{"co":"瑞士","ci":"苏黎世","n":"图恩城堡","p":10,"d":"10欧"},{"co":"瑞士","ci":"苏黎世","n":"万国宫","p":25,"d":"25欧"},{"co":"东欧+德国","ci":"柏林","n":"夏洛腾堡宫","p":19,"d":"19欧"},{"co":"东欧+德国","ci":"柏林","n":"柏林国会大厦","p":0,"d":"免费"},{"co":"东欧+德国","ci":"柏林","n":"柏林犹太人博物馆","p":0,"d":"免费"},{"co":"东欧+德国","ci":"柏林","n":"柏林大教堂","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"柏林","n":"无忧宫","p":14,"d":"14欧"},{"co":"东欧+德国","ci":"柏林","n":"博物馆岛","p":24,"d":"24欧"},{"co":"东欧+德国","ci":"柏林","n":"柏林动物园","p":16,"d":"16欧"},{"co":"东欧+德国","ci":"斯图加特","n":"梅德赛斯奔驰博物馆","p":16,"d":"16欧"},{"co":"东欧+德国","ci":"斯图加特","n":"斯图加特奔驰博物馆","p":16,"d":"16欧"},{"co":"东欧+德国","ci":"斯图加特","n":"德意志博物馆","p":18,"d":"18欧"},{"co":"东欧+德国","ci":"特里尔","n":"马克思故居","p":5,"d":"5欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"新天鹅堡","p":23.5,"d":"24欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"宝马世界","p":0,"d":"免费"},{"co":"东欧+德国","ci":"慕尼黑","n":"宁芬堡宫","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"珍宝馆+慕尼黑王宫联票","p":15,"d":"15欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"宝马博物馆","p":16,"d":"16欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"莱茵河游船","p":38,"d":"38欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"歌德故居","p":12,"d":"12欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"慕尼黑王宫","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"安联球场参观+拜仁博物馆","p":25,"d":"25欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"维斯教堂","p":0,"d":"免费"},{"co":"东欧+德国","ci":"慕尼黑","n":"上阿莫高","p":0,"d":"免费"},{"co":"东欧+德国","ci":"慕尼黑","n":"林德霍夫宫","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"慕尼黑","n":"魔法森林","p":0,"d":"免费"},{"co":"东欧+德国","ci":"慕尼黑","n":"谷物市场","p":0,"d":"免费"},{"co":"东欧+德国","ci":"慕尼黑","n":"O₂ SURFTOWN MUC冲浪","p":89,"d":"89欧"},{"co":"东欧+德国","ci":"海德堡","n":"海德堡城堡","p":11,"d":"11欧"},{"co":"东欧+德国","ci":"海德堡","n":"海德堡皇宫","p":11,"d":"11欧"},{"co":"东欧+德国","ci":"科隆","n":"巧克力博物馆","p":16.5,"d":"16欧"},{"co":"东欧+德国","ci":"科隆","n":"科隆香水博物馆","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"科隆","n":"科隆大教堂","p":0,"d":"免费"},{"co":"东欧+德国","ci":"科隆","n":"路德维希博物馆","p":15.4,"d":"15欧"},{"co":"东欧+德国","ci":"法兰克福","n":"大教堂","p":4,"d":"4欧"},{"co":"东欧+德国","ci":"法兰克福","n":"歌德故居","p":12,"d":"12欧"},{"co":"东欧+德国","ci":"法兰克福","n":"美因塔（Main Tower）","p":9,"d":"9欧"},{"co":"东欧+德国","ci":"法兰克福","n":"法兰克福历史博物馆","p":8,"d":"8欧"},{"co":"东欧+德国","ci":"法兰克福","n":"美茵塔","p":9,"d":"9欧"},{"co":"东欧+德国","ci":"卢森堡","n":"菲安登城堡","p":13,"d":"13欧"},{"co":"东欧+德国","ci":"卢森堡","n":"伯克要塞","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"汉堡","n":"汉堡微缩景观","p":20,"d":"20欧"},{"co":"东欧+德国","ci":"维尔茨堡","n":"维尔茨堡主教宫","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"维尔茨堡","n":"旧博物馆","p":14,"d":"14欧"},{"co":"东欧+德国","ci":"维尔茨堡","n":"新博物馆","p":18,"d":"18欧"},{"co":"东欧+德国","ci":"吕贝克","n":"吕贝克圣马利亚教堂","p":5,"d":"5欧"},{"co":"东欧+德国","ci":"莱茵兰-普法尔茨","n":"科赫姆城堡","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"特里尔","n":"古罗马浴场遗址","p":0,"d":"免费"},{"co":"东欧+德国","ci":"奥地利","n":"美泉宫","p":38,"d":"38欧"},{"co":"东欧+德国","ci":"奥地利","n":"圣史蒂芬大教堂","p":7,"d":"7欧"},{"co":"东欧+德国","ci":"奥地利","n":"沙夫山小火车","p":56.5,"d":"56欧"},{"co":"东欧+德国","ci":"奥地利","n":"国王湖游船","p":29,"d":"29欧"},{"co":"东欧+德国","ci":"奥地利","n":"国王湖缆车","p":45,"d":"45欧"},{"co":"东欧+德国","ci":"奥地利","n":"圣斯蒂芬大教堂","p":7,"d":"7欧"},{"co":"东欧+德国","ci":"奥地利","n":"国家图书馆","p":11,"d":"11欧"},{"co":"东欧+德国","ci":"奥地利","n":"霍夫堡宫（茜茜博物馆）","p":20,"d":"20欧"},{"co":"东欧+德国","ci":"奥地利","n":"维也纳金色大厅","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"奥地利","n":"维也纳艺术博物馆+珍宝馆","p":30,"d":"30欧"},{"co":"东欧+德国","ci":"奥地利","n":"维也纳军事历史博物馆","p":3.5,"d":"4欧"},{"co":"东欧+德国","ci":"奥地利","n":"维也纳歌剧院","p":6,"d":"6欧"},{"co":"东欧+德国","ci":"奥地利","n":"梅尔克修道院","p":16,"d":"16欧"},{"co":"东欧+德国","ci":"奥地利","n":"阿尔贝蒂娜博物馆","p":19.9,"d":"20欧"},{"co":"东欧+德国","ci":"奥地利","n":"卡尔教堂","p":9.5,"d":"10欧"},{"co":"东欧+德国","ci":"奥地利","n":"施华洛世奇博物馆","p":24,"d":"24欧"},{"co":"东欧+德国","ci":"奥地利","n":"哈尔施塔特盐矿","p":44,"d":"44欧"},{"co":"东欧+德国","ci":"奥地利","n":"因斯布鲁克皇宫","p":9.5,"d":"10欧"},{"co":"东欧+德国","ci":"奥地利","n":"萨尔斯堡之巅","p":59,"d":"59欧"},{"co":"东欧+德国","ci":"奥地利","n":"萨尔茨堡缆车","p":14.5,"d":"14欧"},{"co":"东欧+德国","ci":"捷克","n":"布拉格城堡","p":6,"d":"6欧"},{"co":"东欧+德国","ci":"捷克","n":"圣尼古拉斯教堂","p":0,"d":"免费"},{"co":"东欧+德国","ci":"捷克","n":"斯特拉霍夫修道院图书馆","p":0,"d":"免费"},{"co":"东欧+德国","ci":"捷克","n":"伏尔塔瓦河游船","p":15,"d":"15欧"},{"co":"东欧+德国","ci":"捷克","n":"慕夏博物馆","p":0,"d":"免费"},{"co":"东欧+德国","ci":"捷克","n":"ck小镇","p":18,"d":"18欧"},{"co":"东欧+德国","ci":"捷克","n":"火药塔","p":0,"d":"免费"},{"co":"东欧+德国","ci":"捷克","n":"老市政厅","p":0,"d":"免费"},{"co":"东欧+德国","ci":"捷克","n":"泰恩教堂","p":0,"d":"免费"},{"co":"东欧+德国","ci":"捷克","n":"人骨教堂","p":0,"d":"免费"},{"co":"东欧+德国","ci":"匈牙利","n":"议会大厦","p":0,"d":"免费"},{"co":"东欧+德国","ci":"匈牙利","n":"城堡山玛蒂亚斯教堂","p":0,"d":"免费"},{"co":"东欧+德国","ci":"匈牙利","n":"城堡山皇家宫殿博物馆","p":0,"d":"免费"},{"co":"东欧+德国","ci":"匈牙利","n":"匈牙利国家博物馆","p":0,"d":"免费"},{"co":"东欧+德国","ci":"匈牙利","n":"渔人堡","p":0,"d":"免费"},{"co":"东欧+德国","ci":"匈牙利","n":"布达佩斯游船","p":10,"d":"10欧"},{"co":"东欧+德国","ci":"匈牙利","n":"马加什大教堂","p":0,"d":"免费"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"梵高博物馆","p":24,"d":"24欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"阿姆斯特阿丹王宫 不定期关闭 排行程之前先官网查下","p":13.5,"d":"14欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"荷兰国立美术馆","p":25,"d":"25欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"阿姆斯特丹游船","p":21,"d":"21欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"库肯霍夫公园","p":19.5,"d":"20欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"阿提斯皇家动物园","p":30.5,"d":"30欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"MEMO 博物馆","p":17.5,"d":"18欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"MOCO MUseum","p":20,"d":"20欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"杜莎夫人蜡像馆","p":36.5,"d":"36欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"老教堂","p":13.5,"d":"14欧"},{"co":"荷兰比利时","ci":"阿姆斯特丹","n":"安妮弗兰克之家","p":17,"d":"17欧"},{"co":"荷兰比利时","ci":"海牙","n":"海牙美术馆Mauritshuis","p":20,"d":"20欧"},{"co":"荷兰比利时","ci":"鹿特丹","n":"小孩堤防风车村","p":19,"d":"19欧"},{"co":"荷兰比利时","ci":"鹿特丹","n":"圣劳伦斯大教堂","p":4,"d":"4欧"},{"co":"荷兰比利时","ci":"比利时","n":"比利时漫画艺术中心","p":14,"d":"14欧"},{"co":"荷兰比利时","ci":"比利时","n":"布鲁塞尔市政厅","p":15,"d":"15欧"},{"co":"荷兰比利时","ci":"比利时","n":"布鲁塞尔贵兹博物馆-康帝隆酿酒厂","p":8,"d":"8欧"},{"co":"荷兰比利时","ci":"比利时","n":"巧克力博物馆","p":14.5,"d":"14欧"},{"co":"荷兰比利时","ci":"比利时","n":"比利时漫画艺术中心","p":13,"d":"13欧"},{"co":"荷兰比利时","ci":"比利时","n":"安特卫普皇家美术馆","p":20,"d":"20欧"},{"co":"荷兰比利时","ci":"比利时","n":"比利时皇家美术馆","p":15,"d":"15欧"},{"co":"荷兰比利时","ci":"比利时","n":"伯爵城堡","p":13,"d":"13欧"},{"co":"荷兰比利时","ci":"比利时","n":"布鲁日钟楼","p":15,"d":"15欧"},{"co":"希腊","ci":"雅典","n":"卫城博物馆","p":20,"d":"20欧"},{"co":"希腊","ci":"雅典","n":"雅典卫城","p":30,"d":"30欧"},{"co":"希腊","ci":"雅典","n":"奥林匹亚宙斯神庙","p":2,"d":"2欧"},{"co":"希腊","ci":"雅典","n":"雅典国家考古博物馆","p":10,"d":"10欧"},{"co":"希腊","ci":"雅典","n":"宪法广场","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"利卡维多斯山","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"泛雅典娜体育场","p":10,"d":"10欧"},{"co":"希腊","ci":"雅典","n":"哈德良拱门","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"伊亚小镇","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"费拉小镇","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"蓝顶教堂（圣玛丽亚教堂）","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"红沙滩","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"黑沙滩","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"古代锡拉遗址","p":2.5,"d":"2欧"},{"co":"希腊","ci":"雅典","n":"圣托里尼葡萄酒博物馆","p":14,"d":"14欧"},{"co":"希腊","ci":"雅典","n":"皮尔戈斯小镇","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"火山岛","p":5,"d":"5欧"},{"co":"希腊","ci":"雅典","n":"阿克罗蒂里考古遗址","p":5,"d":"5欧"},{"co":"希腊","ci":"雅典","n":"风车阵","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"帕拉波尔蒂阿尼教堂","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"天堂海滩","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"米克诺斯小镇","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"民俗博物馆","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"克诺索斯王宫","p":15,"d":"15欧"},{"co":"希腊","ci":"雅典","n":"伊拉克利翁考古博物馆","p":16,"d":"16欧"},{"co":"希腊","ci":"雅典","n":"雷西姆农老港","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"哈尼亚老港","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"萨马利亚峡谷","p":5,"d":"5欧"},{"co":"希腊","ci":"雅典","n":"埃尔塔火山","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"法拉萨那海滩","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"迈泰奥拉（空中修道院）","p":3,"d":"3欧"},{"co":"希腊","ci":"雅典","n":"奥林匹亚考古遗址（奥林匹克运动会的发源地）","p":6,"d":"6欧"},{"co":"希腊","ci":"雅典","n":"纳普良小镇","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"罗德岛中世纪古城","p":0,"d":"免费"},{"co":"希腊","ci":"雅典","n":"扎金索斯岛沉船湾","p":0,"d":"免费"},{"co":"西班牙","ci":"巴塞罗那","n":"丽池公园","p":0,"d":"免费"},{"co":"西班牙","ci":"巴塞罗那","n":"巴塞罗那大教堂","p":16,"d":"16欧"},{"co":"西班牙","ci":"巴塞罗那","n":"圣家族教堂","p":26,"d":"26欧"},{"co":"西班牙","ci":"巴塞罗那","n":"托莱多官导","p":110,"d":"110欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巴特罗之家","p":38,"d":"38欧"},{"co":"西班牙","ci":"巴塞罗那","n":"高迪之家博物馆","p":21,"d":"21欧"},{"co":"西班牙","ci":"巴塞罗那","n":"奎尔公园","p":18,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"米拉之家","p":29,"d":"29欧"},{"co":"西班牙","ci":"巴塞罗那","n":"加泰罗尼亚音乐厅","p":22,"d":"22欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巴塞罗那西班牙村","p":4,"d":"4欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巴塞罗那弗拉明戈(含一杯酒水)","p":35,"d":"35欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巴塞罗那现代艺术博物馆","p":12,"d":"12欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巴塞罗那米罗基金会美术馆","p":18,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"加泰罗尼亚国家艺术博物馆","p":12,"d":"12欧"},{"co":"西班牙","ci":"巴塞罗那","n":"维森斯之家","p":21,"d":"21欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巴塞罗那港口观光游船(配讲解器)","p":10,"d":"10欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巴塞罗那老城深度游+港口观光游船","p":10,"d":"10欧"},{"co":"西班牙","ci":"巴塞罗那","n":"艺术科学城","p":70,"d":"70欧"},{"co":"西班牙","ci":"巴塞罗那","n":"塞戈维亚大教堂","p":4,"d":"4欧"},{"co":"西班牙","ci":"巴塞罗那","n":"蒙锥克山城堡","p":12,"d":"12欧"},{"co":"西班牙","ci":"巴塞罗那","n":"伯纳乌体育场","p":52.5,"d":"52欧"},{"co":"西班牙","ci":"巴塞罗那","n":"龙达斗牛场","p":9,"d":"9欧"},{"co":"西班牙","ci":"巴塞罗那","n":"荣耀塔观景台Torre Glories","p":18,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"科多纽酒庄Caves Codorniu","p":23,"d":"23欧"},{"co":"西班牙","ci":"巴塞罗那","n":"桃乐丝酒庄BodegasTorres","p":36,"d":"36欧"},{"co":"西班牙","ci":"巴塞罗那","n":"诺坎普球场","p":28,"d":"28欧"},{"co":"西班牙","ci":"巴塞罗那","n":"西班牙国家宫","p":16,"d":"16欧"},{"co":"西班牙","ci":"巴塞罗那","n":"巧克力博物馆","p":7,"d":"7欧"},{"co":"西班牙","ci":"巴塞罗那","n":"蒙特塞拉特缆车AERI来回","p":34,"d":"34欧"},{"co":"西班牙","ci":"巴塞罗那","n":"蒙特塞拉特修道院","p":20,"d":"20欧"},{"co":"西班牙","ci":"巴塞罗那","n":"蒙特塞拉特修道院 大巴士暂停","p":40,"d":"40欧"},{"co":"西班牙","ci":"巴塞罗那","n":"蒙特塞拉特修道院 大巴士停车","p":100,"d":"100欧"},{"co":"西班牙","ci":"巴塞罗那","n":"索菲亚王后国家艺术中心博物馆","p":12,"d":"12欧"},{"co":"西班牙","ci":"巴塞罗那","n":"埃斯科里亚尔修道院","p":18.77,"d":"19欧"},{"co":"西班牙","ci":"巴塞罗那","n":"普拉多博物馆","p":15,"d":"15欧"},{"co":"西班牙","ci":"巴塞罗那","n":"马德里弗拉明戈","p":40,"d":"40欧"},{"co":"西班牙","ci":"巴塞罗那","n":"马德里王宫","p":18,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"托莱多大教堂","p":12,"d":"12欧"},{"co":"西班牙","ci":"巴塞罗那","n":"托莱多官方导游","p":120,"d":"120欧"},{"co":"西班牙","ci":"巴塞罗那","n":"托莱多城堡","p":5,"d":"5欧"},{"co":"西班牙","ci":"巴塞罗那","n":"塞戈维亚官方导游","p":120,"d":"120欧"},{"co":"西班牙","ci":"巴塞罗那","n":"塞戈维亚主教堂","p":4,"d":"4欧"},{"co":"西班牙","ci":"巴塞罗那","n":"塞戈维亚城堡","p":7,"d":"7欧"},{"co":"西班牙","ci":"巴塞罗那","n":"埃斯科里亚尔修道院","p":14,"d":"14欧"},{"co":"西班牙","ci":"巴塞罗那","n":"塞维利亚大教堂","p":13,"d":"13欧"},{"co":"西班牙","ci":"巴塞罗那","n":"塞维利亚王宫","p":15.5,"d":"16欧"},{"co":"西班牙","ci":"巴塞罗那","n":"塞维利亚马车游览","p":25,"d":"25欧"},{"co":"西班牙","ci":"巴塞罗那","n":"官方导游陪同入内","p":150,"d":"150欧"},{"co":"西班牙","ci":"巴塞罗那","n":"科尔多瓦清真寺","p":13,"d":"13欧"},{"co":"西班牙","ci":"巴塞罗那","n":"官方导游陪同入内","p":150,"d":"150欧"},{"co":"西班牙","ci":"巴塞罗那","n":"阿尔罕布拉宫","p":22.27,"d":"22欧"},{"co":"西班牙","ci":"巴塞罗那","n":"龙达官方导游","p":120,"d":"120欧"},{"co":"西班牙","ci":"巴塞罗那","n":"达利博物馆","p":18,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"萨拉曼卡官方导游","p":120,"d":"120欧"},{"co":"西班牙","ci":"巴塞罗那","n":"全古迹(20人起成团)","p":17.5,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"莱昂主教座堂","p":7,"d":"7欧"},{"co":"西班牙","ci":"巴塞罗那","n":"圣伊西多罗教堂","p":7,"d":"7欧"},{"co":"西班牙","ci":"巴塞罗那","n":"热罗尼莫斯修道院","p":18,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"贝伦塔及大航海纪念碑","p":15,"d":"15欧"},{"co":"西班牙","ci":"巴塞罗那","n":"比卡升降机以及圣胡斯塔升降机","p":14,"d":"14欧"},{"co":"西班牙","ci":"巴塞罗那","n":"葡萄牙国粹法朵舞蹈表演","p":45,"d":"45欧"},{"co":"西班牙","ci":"巴塞罗那","n":"圣弗朗西斯科教堂","p":10,"d":"10欧"},{"co":"西班牙","ci":"巴塞罗那","n":"牧师塔","p":10,"d":"10欧"},{"co":"西班牙","ci":"巴塞罗那","n":"莱罗书店","p":12,"d":"12欧"},{"co":"西班牙","ci":"巴塞罗那","n":"杜罗河博物馆","p":10,"d":"10欧"},{"co":"西班牙","ci":"巴塞罗那","n":"波尔图官导","p":120,"d":"120欧"},{"co":"西班牙","ci":"巴塞罗那","n":"辛特拉王宫","p":13,"d":"13欧"},{"co":"西班牙","ci":"巴塞罗那","n":"佩纳宫","p":18,"d":"18欧"},{"co":"西班牙","ci":"巴塞罗那","n":"雷加莱拉庄园","p":15,"d":"15欧"},{"co":"西班牙","ci":"巴塞罗那","n":"科英布拉大学+巴洛克式图书馆","p":16.5,"d":"16欧"},{"co":"西班牙","ci":"巴塞罗那","n":"贝伦蛋挞","p":2,"d":"2欧"},{"co":"西班牙","ci":"巴塞罗那","n":"贝纳吉尔洞穴游船（1h)非包船","p":40,"d":"40欧"},{"co":"西班牙","ci":"巴塞罗那","n":"阿尔加维洞穴船票（1h)非包船","p":40,"d":"40欧"},{"co":"西班牙","ci":"巴塞罗那","n":"杜罗河酒庄（可品三种酒+讲解）","p":50,"d":"50欧"},{"co":"西西里","ci":"西西里","n":"巴勒莫皇宫","p":19,"d":"19欧"},{"co":"西西里","ci":"西西里","n":"歌剧院","p":12,"d":"12欧"},{"co":"西西里","ci":"西西里","n":"王室山教堂","p":6,"d":"6欧"},{"co":"西西里","ci":"西西里","n":"阿格里真托神殿之谷","p":12,"d":"12欧"},{"co":"西西里","ci":"西西里","n":"锡拉库萨古希腊剧场","p":16,"d":"16欧"},{"co":"西西里","ci":"西西里","n":"艾特纳火山","p":78,"d":"78欧"},{"co":"西西里","ci":"西西里","n":"陶尔米纳古代剧场","p":16,"d":"16欧"},{"co":"西西里","ci":"西西里","n":"陶尔米纳城堡","p":17,"d":"17欧"},{"co":"西西里","ci":"西西里","n":"美丽岛","p":4,"d":"4欧"},{"co":"西西里","ci":"西西里","n":"锡拉库萨主教堂","p":2,"d":"2欧"},{"co":"西西里","ci":"西西里","n":"贝拉岛博物馆","p":6,"d":"6欧"},{"co":"西西里","ci":"西西里","n":"陶尔米纳火山缆车单程","p":5,"d":"5欧"},{"co":"西西里","ci":"西西里","n":"埃特纳火山缆车+4*4越野+徒步向导","p":80,"d":"80欧"},{"co":"西西里","ci":"西西里","n":"锡拉库萨的狄奥尼修斯之耳","p":16,"d":"16欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"斯德哥尔摩市政厅","p":15,"d":"15欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"斯德哥尔摩城市博物馆","p":0,"d":"免费"},{"co":"北欧","ci":"斯德哥尔摩","n":"瓦萨博物馆 + 沉船博物馆","p":32,"d":"32欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"瓦萨博物馆","p":22,"d":"22欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"皇宫 The Royal Palace","p":20,"d":"20欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"骑士岛教堂 The Riddarholmen Church","p":8,"d":"8欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"皇宫 + 骑士岛教堂","p":23,"d":"23欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"卓宁霍姆宫 Drottningholm Palace","p":18,"d":"18欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"中国馆 The Chinese Pavilion","p":15,"d":"15欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"卓宁霍姆宫 + 中国馆","p":25,"d":"25欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"格利普斯霍姆城堡 Gripsholm Castle","p":18,"d":"18欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"乌里克斯达尔宫 Ulriksdal Palace","p":15,"d":"15欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"图尔甘宫 Tullgarn Palace","p":15,"d":"15欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"斯德哥尔摩大教堂 Storkyrkan","p":12,"d":"12欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"诺贝尔博物馆 Nobel Prize Museum","p":16,"d":"16欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"当代美术馆 Moderna Museet","p":17,"d":"17欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"北欧博物馆 Nordiska museet","p":19,"d":"19欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"六月坡 Junibacken","p":22,"d":"22欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"瑞典品味博物馆 Spritmuseum","p":16,"d":"16欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"维京博物馆 The Viking Museum","p":20,"d":"20欧"},{"co":"北欧","ci":"斯德哥尔摩","n":"斯堪森水族馆 Skansen-Akvariet","p":16,"d":"16欧"},{"co":"北欧","ci":"哥德堡","n":"里瑟本游乐园 Liseberg","p":18,"d":"18欧"},{"co":"北欧","ci":"哥德堡","n":"自然历史博物馆 Luonnontieteellinen museo","p":10,"d":"10欧"},{"co":"北欧","ci":"哥德堡","n":"哥特堡美术馆 Göteborgs konstmuseum","p":10,"d":"10欧"},{"co":"北欧","ci":"哥德堡","n":"沃尔沃世界 World of Volvo","p":25,"d":"25欧"},{"co":"北欧","ci":"哥德堡","n":"哥德堡市立博物馆 Göteborgs stadsmuseum","p":10,"d":"10欧"},{"co":"北欧","ci":"哥德堡","n":"海事博物馆 Maritime Museum & Aquarium","p":10,"d":"10欧"},{"co":"北欧","ci":"赫尔辛堡附近","n":"索菲罗城堡 Sofiero Palace","p":15,"d":"15欧"},{"co":"北欧","ci":"马尔默","n":"马尔默城堡 Malmö Castle","p":10,"d":"10欧"},{"co":"北欧","ci":"瓦萨","n":"瓦萨博物馆","p":14,"d":"14欧"},{"co":"北欧","ci":"赫尔辛基","n":"赫尔辛基大教堂 Helsingin tuomiokirkko","p":10,"d":"10欧"},{"co":"北欧","ci":"赫尔辛基","n":"芬兰建筑博物馆 Arkkitehtuurimuseo","p":22,"d":"22欧"},{"co":"北欧","ci":"赫尔辛基","n":"设计博物馆 Designmuseo","p":22,"d":"22欧"},{"co":"北欧","ci":"赫尔辛基","n":"圣殿广场教堂（岩石教堂） Temppeliaukion kirkko","p":10,"d":"10欧"},{"co":"北欧","ci":"赫尔辛基","n":"自然历史博物馆 Luonnontieteellinen museo","p":21,"d":"21欧"},{"co":"北欧","ci":"赫尔辛基","n":"阿莫斯瑞克斯美术馆 Amos Rex","p":22,"d":"22欧"},{"co":"北欧","ci":"埃斯波","n":"埃斯波现代艺术博物馆 EMMA - Espoon modernin taitee","p":22,"d":"22欧"},{"co":"北欧","ci":"图尔库","n":"芬兰图尔库博物馆 套票 Aboa Vetus & Ars Nova COMB","p":18,"d":"18欧"},{"co":"北欧","ci":"图尔库","n":"图尔库城堡 Turun linna","p":18,"d":"18欧"},{"co":"北欧","ci":"图尔库","n":"芬兰堡","p":10,"d":"10欧"},{"co":"北欧","ci":"罗瓦涅米","n":"北极圈证书","p":10,"d":"10欧"},{"co":"北欧","ci":"罗瓦涅米","n":"极地博物馆 Arktikum","p":20,"d":"20欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"雪桑拿和按摩浴缸 Snow sauna and jacuzzi","p":100,"d":"100欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"北极雪酒店门票 Entrance to Arctic SnowHotel","p":30,"d":"30欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"带导游的桑拿体验 Guided sauna experience 仅适用于 Ar","p":25,"d":"25欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"冰钓","p":60,"d":"60欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"电动雪地平衡车探险 Electric snow scoot safari","p":130,"d":"130欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"雪鞋远足","p":90,"d":"90欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"参观驯鹿农场（冬季）","p":105,"d":"105欧"},{"co":"北欧","ci":"锡内塔\n距离罗瓦涅米27公里30分钟车程","n":"冰雕手工","p":80,"d":"80欧"},{"co":"北欧","ci":"罗瓦涅米","n":"皮尔客科学中心","p":9,"d":"9欧"},{"co":"北欧","ci":"拉努阿","n":"拉努阿北极野生动物园","p":26,"d":"26欧"},{"co":"北欧","ci":"凯米","n":"凯米破冰船","p":481,"d":"481欧"},{"co":"北欧","ci":"凯米","n":"凯米冰雪城堡","p":17,"d":"17欧"},{"co":"北欧","ci":"罗瓦涅米","n":"圣诞乐园 Santa Park","p":52,"d":"52欧"},{"co":"北欧","ci":"萨里色儿卡","n":"淘金博物馆 Tankavaara","p":18,"d":"18欧"},{"co":"北欧","ci":"希尔科内斯","n":"瓦朗厄尔博物馆","p":12,"d":"12欧"},{"co":"北欧","ci":"希尔科内斯","n":"帝王蟹","p":280,"d":"280欧"},{"co":"北欧","ci":"希尔科内斯","n":"冰雪酒店门票","p":32,"d":"32欧"},{"co":"北欧","ci":"特罗姆瑟","n":"北极大教堂","p":12,"d":"12欧"},{"co":"北欧","ci":"特罗姆瑟","n":"极地博物馆The Polar Museum","p":11,"d":"11欧"},{"co":"北欧","ci":"特罗姆瑟","n":"马克啤酒厂1小时 Macks Ølbryggeri AS","p":25,"d":"25欧"},{"co":"北欧","ci":"特罗姆瑟","n":"静默观鲸 8-9小时","p":155,"d":"155欧"},{"co":"北欧","ci":"特罗姆瑟","n":"驯鹿喂养和萨米文化","p":130,"d":"130欧"},{"co":"北欧","ci":"特罗姆瑟","n":"驯鹿雪橇和萨米文化","p":175,"d":"175欧"},{"co":"北欧","ci":"特罗姆瑟","n":"萨米驯鹿短雪橇 4 小时","p":155,"d":"155欧"},{"co":"北欧","ci":"特罗姆瑟","n":"萨米驯鹿长雪橇 4 小时","p":175,"d":"175欧"},{"co":"北欧","ci":"特罗姆瑟","n":"1 小时摄影与历史巡游","p":80,"d":"80欧"},{"co":"北欧","ci":"特罗姆瑟","n":"钓鱼和峡湾巡游","p":155,"d":"155欧"},{"co":"北欧","ci":"特罗姆瑟","n":"特罗姆瑟狗拉雪橇 4.5-5 小时","p":240,"d":"240欧"},{"co":"北欧","ci":"特罗姆瑟","n":"追逐极光 5至7小时","p":190,"d":"190欧"},{"co":"北欧","ci":"特罗姆瑟","n":"林根雪地摩托探险7 小时","p":240,"d":"240欧"},{"co":"北欧","ci":"卑尔根","n":"弗洛依恩山缆车往返","p":18,"d":"18欧"},{"co":"北欧","ci":"哈当厄尔","n":"哈当厄尔峡湾游船","p":30,"d":"30欧"},{"co":"北欧","ci":"弗洛姆","n":"弗洛姆火车","p":65,"d":"65欧"},{"co":"北欧","ci":"弗洛姆","n":"弗洛姆游船","p":35,"d":"35欧"},{"co":"北欧","ci":"盖朗厄尔","n":"盖朗厄尔峡湾游船","p":45,"d":"45欧"},{"co":"北欧","ci":"奥斯陆","n":"奥斯陆王宫","p":20,"d":"20欧"},{"co":"北欧","ci":"奥斯陆","n":"奥斯陆歌剧院","p":15,"d":"15欧"},{"co":"北欧","ci":"奥斯陆","n":"新蒙克博物馆","p":18,"d":"18欧"},{"co":"北欧","ci":"奥斯陆","n":"霍尔门科伦滑雪博物馆 Holmenkollen Ski Museum","p":18,"d":"18欧"},{"co":"北欧","ci":"雷克雅未克","n":"蓝湖温泉基础","p":95,"d":"95欧"},{"co":"北欧","ci":"雷克雅未克","n":"观鲸3小时","p":95,"d":"95欧"},{"co":"北欧","ci":"杰古沙龙湖","n":"冰川徒步","p":150,"d":"150欧"},{"co":"北欧","ci":"杰古沙龙湖","n":"蓝冰洞","p":135,"d":"135欧"},{"co":"北欧","ci":"杰古沙龙湖","n":"水陆两用船","p":50,"d":"50欧"},{"co":"北欧","ci":"杰古沙龙湖","n":"橡胶船","p":105,"d":"105欧"},{"co":"北欧","ci":"雷克雅未克","n":"北极光中心","p":30,"d":"30欧"},{"co":"北欧","ci":"斯奈山半岛","n":"维京寿司船","p":70,"d":"70欧"},{"co":"北欧","ci":"胡萨维克","n":"胡萨维克鲸鱼博物馆","p":20,"d":"20欧"},{"co":"北欧","ci":"胡萨维克","n":"胡萨维克出海观鲸3小时","p":95,"d":"95欧"},{"co":"北欧","ci":"维克途中","n":"飞机残骸","p":30,"d":"30欧"},{"co":"北欧","ci":"雷克雅未克","n":"叮叮博物馆 Penis Museum","p":25,"d":"25欧"},{"co":"北欧","ci":"索尔黑马","n":"索尔黑马冰川徒步 Sólheimajökull Glacier","p":90,"d":"90欧"},{"co":"北欧","ci":"胡萨菲尔","n":"维德盖尔米 (Vídgelmi) 洞穴之旅","p":55,"d":"55欧"},{"co":"北欧","ci":"雷克雅未克","n":"熔岩秀 50分钟 Lava Show Vík","p":40,"d":"40欧"},{"co":"北欧","ci":"距离雷克霍特近\nDeildartunguhver","n":"克劳马天然温泉 1小时 Krauma Geothermal Baths & Sp","p":70,"d":"70欧"},{"co":"北欧","ci":"弗雷斯内斯","n":"冰川探索4小时 夏季 最多8人 2人起订","p":150,"d":"150欧"},{"co":"北欧","ci":"弗雷斯内斯","n":"冰川邂逅2.5-3小时 夏季 2人起订","p":115,"d":"115欧"},{"co":"北欧","ci":"斯奈山半岛附近","n":"瓦特谢利尔洞穴 Vatnshellir","p":38,"d":"38欧"},{"co":"北欧","ci":"在雷克雅未克附近","n":"深入火山洞 Þríhnúkagígur","p":310,"d":"310欧"},{"co":"北欧","ci":"维克小镇附近","n":"卡特拉冰洞之旅2.5-3小时","p":185,"d":"185欧"},{"co":"北欧","ci":"雷克雅未克附近","n":"天空温泉 Sky Lagoon","p":75,"d":"75欧"},{"co":"北欧","ci":"胡萨维克","n":"静默观鲸（碳中和之旅） Silent Whale Watching (Carbo","p":95,"d":"95欧"},{"co":"北欧","ci":"胡萨维克","n":"胡萨维克原始观鲸之旅 Húsavík Original Whale Watchi","p":88,"d":"88欧"},{"co":"北欧","ci":"雷克雅内斯火山区","n":"雷克雅未克出发直升机之旅","p":475,"d":"475欧"},{"co":"北欧","ci":"哥本哈根","n":"水晶宫","p":17,"d":"17欧"},{"co":"北欧","ci":"哥本哈根","n":"哈姆雷特城堡","p":22,"d":"22欧"},{"co":"北欧","ci":"欧登塞","n":"安徒生故居","p":24,"d":"24欧"},{"co":"北欧","ci":"欧登塞","n":"安徒生童年之家","p":12,"d":"12欧"},{"co":"北欧","ci":"欧登塞","n":"菲英村","p":22,"d":"22欧"},{"co":"北欧","ci":"哥本哈根","n":"蒂沃尼遊樂園","p":26,"d":"26欧"},{"co":"北欧","ci":"哥本哈根","n":"阿美琳堡王宫 Amalienborg","p":19,"d":"19欧"},{"co":"北欧","ci":"哥本哈根","n":"克里斯蒂安堡宫 Christiansborg Slot","p":29,"d":"29欧"},{"co":"北欧","ci":"哥本哈根","n":"“玫瑰堡”罗森堡宫","p":21,"d":"21欧"},{"co":"北欧","ci":"哥本哈根","n":"公园博物馆门票 The Park Museum Ticket","p":42,"d":"42欧"},{"co":"北欧","ci":"哥本哈根","n":"趣伏里公园 Tivoli","p":36,"d":"36欧"},{"co":"北欧","ci":"哥本哈根","n":"丹麦国家博物馆 Nationalmuseet","p":20,"d":"20欧"},{"co":"北欧","ci":"哥本哈根","n":"丹麦艺术与设计博物馆 Designmuseum Danmark","p":20,"d":"20欧"},{"co":"北欧","ci":"哥本哈根","n":"丹麦国立美术馆 SMK – Statens Museum for Kunst","p":20,"d":"20欧"},{"co":"北欧","ci":"哥本哈根","n":"厄勒海峡大桥 Öresundsbron","p":70,"d":"70欧"},{"co":"北欧","ci":"罗斯基勒","n":"维京船博物馆 全年每天开放 Viking Ship Museum Vikinge","p":24,"d":"24欧"},{"co":"北欧","ci":"罗斯基勒","n":"罗斯基勒峡湾的夏季航海之旅","p":45,"d":"45欧"},{"co":"北欧","ci":"比隆","n":"乐高乐园","p":50,"d":"50欧"},{"co":"北欧","ci":"托尔斯港","n":"国家美术馆 The National Gallery of The Faroe ","p":15,"d":"15欧"},{"co":"北欧","ci":"托尔斯港","n":"水族馆","p":0,"d":"免费"},{"co":"北欧","ci":"沃格尔 (Vágar)","n":"德兰加尼尔和穆拉瀑布乘船游览 Drangarnir & Múlafossur B","p":90,"d":"90欧"},{"co":"北欧","ci":"沃格尔 (Vágar)","n":"海鹦游船之旅 1小时 Puffin Safari Boat Tour","p":90,"d":"90欧"},{"co":"北欧","ci":"沃格尔 (Vágar)","n":"德兰加尼尔海拱游船及徒步之旅 Drangarnir Sea Arch Boat ","p":135,"d":"135欧"},{"co":"北欧","ci":"沃格尔 (Vágar)","n":"徒步前往 Trælanípa 和 Bøsdalafoss 瀑布 Hike to ","p":65,"d":"65欧"},{"co":"北欧","ci":"沃格尔 (Vágar)","n":"瓦特斯达尔湖（Vatnsdalsvatn）——壁炉形湖泊 长度：2 - 5 公里","p":85,"d":"85欧"},{"co":"北欧","ci":"沃格尔 (Vágar)","n":"德兰加尼尔海蚀柱乘船游览 Drangarnir Sea Stacks Boat ","p":90,"d":"90欧"},{"co":"北欧","ci":"沃格尔 (Vágar)","n":"邓尼斯德兰格海蚀柱乘船游览 Dunnesdrangar Sea Stacks B","p":105,"d":"105欧"},{"co":"英国","ci":"London","n":"福尔摩斯博物馆","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"伦敦动物园","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"伦敦海洋馆","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"杜莎夫人蜡像馆","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"大英博物馆","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"伦敦塔","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"伦敦塔桥","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"圣保罗大教堂","p":26,"d":"£26"},{"co":"英国","ci":"London","n":"伦敦眼","p":29,"d":"£29"},{"co":"英国","ci":"London","n":"议会大厦","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"西敏寺（威斯敏斯特教堂）","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"白金汉宫 14 Jul 2023 - 24 Sep 2023","p":33,"d":"£33"},{"co":"英国","ci":"London","n":"格林威治皇家天文台 （一日通票）","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"邱园","p":27,"d":"£27"},{"co":"英国","ci":"London","n":"汉普顿宫","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"伦敦地牢","p":35,"d":"£35"},{"co":"英国","ci":"London","n":"贝尔法斯特号军舰","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"阿仙奴酋长球场 （阿森纳）","p":32,"d":"£32"},{"co":"英国","ci":"London","n":"温布利球场","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"斯坦福桥球场（切尔西主场）","p":0,"d":"免费"},{"co":"英国","ci":"London","n":"泰晤士河游船","p":12.85,"d":"£13"},{"co":"英国","ci":"London","n":"肯辛顿宫","p":24.7,"d":"£25"},{"co":"英国","ci":"London","n":"女王美术馆","p":19,"d":"£19"},{"co":"英国","ci":"London","n":"皇家马厩","p":18,"d":"£18"},{"co":"英国","ci":"London","n":"切斯顿冒险世界","p":66,"d":"£66"},{"co":"英国","ci":"London","n":"碎片大厦","p":0,"d":"免费"},{"co":"英国","ci":"南安普顿","n":"保尔顿斯主题乐园","p":0,"d":"免费"},{"co":"英国","ci":"肯特郡","n":"利兹城堡","p":33,"d":"£33"},{"co":"英国","ci":"Watford","n":"哈利波特拍摄基地","p":56,"d":"£56"},{"co":"英国","ci":"Cambridge","n":"剑桥国王学院","p":16.25,"d":"£16"},{"co":"英国","ci":"Cambridge","n":"剑桥女王学院 7.30-12.21","p":0,"d":"免费"},{"co":"英国","ci":"Cambridge","n":"剑桥康河游船","p":35,"d":"£35"},{"co":"英国","ci":"Oxford","n":"牛津基督学院","p":18,"d":"£18"},{"co":"英国","ci":"Woodstock","n":"丘吉尔庄园","p":32,"d":"£32"},{"co":"英国","ci":"Brighton","n":"布莱顿行宫","p":13.5,"d":"£14"},{"co":"英国","ci":"Stratford-upon-Avon","n":"莎士比亚故居","p":18,"d":"£18"},{"co":"英国","ci":"Windsor","n":"温莎城堡","p":0,"d":"免费"},{"co":"英国","ci":"Windsor","n":"乐高乐园","p":38,"d":"£38"},{"co":"英国","ci":"Liverpool","n":"披头士岁月博物馆","p":18,"d":"£18"},{"co":"英国","ci":"Cardiff","n":"卡迪夫城堡","p":38,"d":"£38"},{"co":"英国","ci":"Staffordshire","n":"ALTON 游乐场","p":68,"d":"£68"},{"co":"英国","ci":"Warwick","n":"华威城堡","p":34,"d":"£34"},{"co":"英国","ci":"Birmingham","n":"吉百利巧克力工厂","p":21,"d":"£21"},{"co":"英国","ci":"Shaffield","n":"达西庄园","p":23,"d":"£23"},{"co":"英国","ci":"Manchester","n":"老特拉福德球场","p":25,"d":"£25"},{"co":"英国","ci":"York","n":"约克教堂","p":16,"d":"£16"},{"co":"英国","ci":"York","n":"约克巧克力工厂","p":17.5,"d":"£18"},{"co":"英国","ci":"York","n":"霍华德城堡","p":22,"d":"£22"},{"co":"英国","ci":"Northumberland","n":"安尼克城堡 2023.3.31-10.29","p":20.5,"d":"£20"},{"co":"英国","ci":"Windermere","n":"彼得兔博物馆","p":9,"d":"£9"},{"co":"英国","ci":"Windermere","n":"温德米尔湖游船","p":10,"d":"£10"},{"co":"英国","ci":"Loch Ness","n":"厄克特城堡","p":13,"d":"£13"},{"co":"英国","ci":"Stirling","n":"斯特灵城堡","p":17.5,"d":"£18"},{"co":"英国","ci":"Edinburgh","n":"爱丁堡城堡","p":22,"d":"£22"},{"co":"英国","ci":"Edinburgh","n":"荷里路德宫","p":18,"d":"£18"},{"co":"英国","ci":"Edinburgh","n":"苏格兰威士忌体验中心","p":21,"d":"£21"},{"co":"英国","ci":"Edinburgh","n":"威士忌酒厂参观 Glenkinchie Distillery（未知）","p":5,"d":"£5"},{"co":"英国","ci":"巴斯","n":"史前巨石阵","p":23.6,"d":"£24"},{"co":"英国","ci":"巴斯","n":"巴斯罗马浴室","p":28,"d":"£28"},{"co":"英国","ci":"巴斯","n":"巴斯水疗中心","p":40,"d":"£40"},{"co":"英国","ci":"巴斯","n":"皇家新月楼1号","p":15,"d":"£15"},{"co":"英国","ci":"Gwynedd","n":"北威尔士卡那封城堡","p":9.5,"d":"£10"},{"co":"英国","ci":"Isle of Wight","n":"奥斯本宫","p":18.1,"d":"£18"},{"co":"英国","ci":"London","n":"狄更斯故居","p":12.5,"d":"£12"},{"co":"英国","ci":"Cornwall","n":"伊甸园","p":37.5,"d":"£38"},{"co":"英国","ci":"North Yorkshire","n":"约克郡白卡溶洞","p":15,"d":"£15"},{"co":"英国","ci":"Rotherham","n":"里彭喷泉修道院","p":16,"d":"£16"},{"co":"英国","ci":"Northumberland","n":"奇灵厄姆城堡","p":11,"d":"£11"},{"co":"英国","ci":"Northumberland","n":"艾维克城堡","p":20.5,"d":"£20"},{"co":"英国","ci":"Coventry","n":"考文垂大教堂","p":6,"d":"£6"},{"co":"英国","ci":"Stratford-upon-Avon","n":"简奥斯丁故居","p":12.75,"d":"£13"},{"co":"英国","ci":"Cultra, Northern Ireland, about 11 kilometres (6.8 mi) east of the city of Belfast","n":"阿尔斯特民居与交通博物馆","p":9.9,"d":"£10"},{"co":"英国","ci":"Belfast","n":"卡里克空中索桥（2018）","p":9,"d":"£9"},{"co":"英国","ci":"Belfast","n":"巨人之路 （2018）","p":12.5,"d":"£12"},{"co":"英国","ci":"Belfast","n":"贝尔法斯特泰坦尼克纪念中心","p":24.95,"d":"£25"},{"co":"英国","ci":"威尔士","n":"康威城堡","p":11.1,"d":"£11"},{"co":"英国","ci":"伯明翰附近","n":"汽车博物馆","p":14.5,"d":"£14"},{"co":"英国","ci":"朴茨茅斯","n":"朴茨茅斯造船厂","p":24,"d":"£24"},{"co":"英国","ci":"朴茨茅斯","n":"朗利特动物园","p":39.95,"d":"£40"}];
+function dbFor(dest){
+  const k = Object.keys(DB).find(x => dest.includes(x) || x.includes(dest));
+  return DB[k] || {cities:[dest], must:['城市精华','老城漫步','特色餐厅','观景点'], pitch:'按客户重点需求定制，减少无效折返。'};
+}
+function updateTicketSelect(){
+  const sel = $('ticketSelect');
+  if(!sel) return;
+  const keys = [ $('destination').value, ...split($('cities').value), ...parseRouteText($('routeLine').value) ].filter(Boolean);
+  let list = TICKET_DB.filter(t => keys.some(k => (t.co||'').includes(k) || (t.ci||'').includes(k) || k.includes(t.ci) || (t.n||'').includes(k)));
+  if(!list.length) list = TICKET_DB.slice(0, 160);
+  const seen = new Set();
+  sel.innerHTML = '<option value="">从门票价格库选择</option>';
+  list.forEach(t => {
+    const key = t.co + t.ci + t.n;
+    if(seen.has(key)) return;
+    seen.add(key);
+    const opt = document.createElement('option');
+    opt.value = JSON.stringify(t);
+    opt.textContent = `${t.co}｜${t.ci}｜${t.n} ${t.d || ('€'+t.p)}`;
+    sel.appendChild(opt);
+  });
+}
+function addTicketFromDB(){
+  const sel = $('ticketSelect');
+  if(!sel || !sel.value) return;
+  const t = JSON.parse(sel.value);
+  state.ticket.push({name:t.n, eur:parseFloat(t.p)||0, unit:'person', cat:'必打卡'});
+  if(!$('mustSee').value.includes(t.n)){
+    const city = t.ci ? t.ci + '-' : '';
+    $('mustSee').value = ($('mustSee').value.trim() + '\n' + city + t.n).trim();
+  }
+  sel.value = '';
+  renderCostInputs();
+  generateAll();
+}
+function markupRate(){return parseFloat($('markup')?.value) || DEFAULT_MARKUP;}
+function parseRouteText(text){
+  return String(text||'').split(/\s*(?:→|->|—|–|-|\/|、|,|，|\n)\s*/).map(c=>c.trim()).filter(Boolean);
+}
+function carRowScore(row, city){
+  const text = `${row.name || ''} ${row.note || ''}`;
+  let score = 0;
+  if(text.includes(city)) score += 20;
+  if(city.includes('阿玛菲') || city.includes('那不勒斯') || city.includes('波西塔诺') || city.includes('索伦托')) {
+    if(row.name.includes('南意')) score += 40;
+  }
+  if(city.includes('西西里') && row.name.includes('西西里')) score += 50;
+  if(['罗马','米兰','佛罗伦萨','威尼斯'].some(k => city.includes(k)) && row.name.includes('意大利常规城市')) score += 15;
+  if(['慕尼黑','柏林','法兰','科隆','杜塞'].some(k => city.includes(k)) && row.name.includes('德国常规城市')) score += 15;
+  if(['苏黎世','日内瓦','卢塞恩','因特拉肯','采尔马特'].some(k => city.includes(k)) && row.name.includes('瑞士')) score += 15;
+  if(row.name && (row.name.includes(city) || city.includes(row.name.replace(/[（）()]/g,'')))) score += 25;
+  if(/ncc/i.test(row.name) && !/ncc/i.test(city)) score -= 30;
+  if(/ncc/i.test(row.name) && /ncc/i.test(city)) score += 40;
+  return score;
+}
+function autoMatchCarRow(city){
+  let best = null, bestScore = -1;
+  CAR_PRICE_DB.forEach(row => {
+    const score = carRowScore(row, city);
+    if(score > bestScore){ best = row; bestScore = score; }
+  });
+  return bestScore > 0 ? best : null;
+}
+function autoMatchPrice(city){
+  const row = autoMatchCarRow(city);
+  if(row){
+    const season = $('season')?.value === 'peak' ? 'Peak' : 'Off';
+    return row['benz' + season] || row.benzOff || row.benzPeak || 450;
+  }
+  const key = Object.keys(CITY_PRICE).find(k => city.includes(k) || k.includes(city));
+  return key ? CITY_PRICE[key] : 450;
+}
+function autoLodgingPrice(city){
+  const row = autoMatchCarRow(city);
+  const text = `${row?.name || ''} ${row?.note || ''}`;
+  const m = text.match(/住宿(?:补贴|按照|)?\D*(\d+)\s*(?:欧|瑞|英)?/);
+  if(m) return parseFloat(m[1]);
+  if(city.includes('都柏林')) return 120;
+  if(city.includes('卑尔根') || city.includes('冰岛') || city.includes('罗瓦涅米') || city.includes('阿玛菲') || city.includes('那不勒斯') || city.includes('波西塔诺') || city.includes('索伦托')) return 150;
+  return 150;
+}
+function autoDeadheadPrice(city){
+  const key = Object.keys(DEADHEAD_PRICE).find(k => city.includes(k) || k.includes(city));
+  return key ? DEADHEAD_PRICE[key] : 280;
+}
+function autoGenerateFromRoute(routeText, skipRender){
+  const cities = parseRouteText(routeText);
+  if(!cities.length) return $('routeLine').focus();
+  $('cities').value = cities.join(' / ');
+  updateTicketSelect();
+  const currentDays = Math.max(parseInt($('days').value)||cities.length, cities.length);
+  $('days').value = currentDays;
+  state.car = [];
+  state.deadhead = [];
+  state.lodging = [];
+  const base = Math.floor(currentDays / cities.length);
+  let extra = currentDays % cities.length;
+  cities.forEach(city => {
+    const useDays = Math.max(1, base + (extra-- > 0 ? 1 : 0));
+    const row = autoMatchCarRow(city);
+    const note = row?.name ? `（匹配：${row.name}）` : '';
+    state.car.push({name: city + '｜奔驰商务' + note, eur: autoMatchPrice(city), days: useDays});
+  });
+  if(cities.length > 1){
+    const last = cities[cities.length - 1];
+    state.deadhead.push({name: last + ' → 返回', eur: autoDeadheadPrice(last), qty: 1});
+    state.lodging.push({name:'司机住宿补贴｜跨城线路', eur:autoLodgingPrice(last), qty:Math.max(1, currentDays - 1)});
+  }
+  state.autoRoute = routeText;
+  renderCostInputs();
+  adjustByClientType($('customer').value, true);
+  if(!skipRender) generateAll();
+}
+
+function addCost(type){
+  if(type==='car'){
+    const name=$('carName').value.trim()||'包车'; const eur=n('carEur'); const days=n('carDays')||1;
+    if(!eur) return $('carEur').focus(); state.car.push({name,eur,days});
+    $('carName').value=''; $('carEur').value=''; $('carDays').value=1;
+  }
+  if(type==='transfer'){
+    const name=$('transferName').value.trim()||'接送机'; const eur=n('transferEur'); const qty=n('transferQty')||1;
+    if(!eur) return $('transferEur').focus(); state.transfer.push({name,eur,qty});
+    $('transferName').value=''; $('transferEur').value=''; $('transferQty').value=1;
+  }
+  if(type==='ticket'){
+    const name=$('ticketName').value.trim(); const eur=n('ticketEur'); const unit=$('ticketUnit').value; const cat=$('ticketCat').value;
+    if(!name) return $('ticketName').focus(); state.ticket.push({name,eur,unit,cat});
+    $('ticketName').value=''; $('ticketEur').value='';
+  }
+  if(type==='deadhead'){
+    const name=$('deadheadName').value.trim()||'空返/调度费'; const eur=n('deadheadEur'); const qty=n('deadheadQty')||1;
+    if(!eur) return $('deadheadEur').focus(); state.deadhead.push({name,eur,qty});
+    $('deadheadName').value=''; $('deadheadEur').value=''; $('deadheadQty').value=1;
+  }
+  if(type==='lodging'){
+    const name=$('lodgingName').value.trim()||'司机住宿补贴'; const eur=n('lodgingEur'); const qty=n('lodgingQty')||1;
+    if(!eur) return $('lodgingEur').focus(); state.lodging.push({name,eur,qty});
+    $('lodgingName').value=''; $('lodgingEur').value=''; $('lodgingQty').value=1;
+  }
+  if(type==='hotel'){
+    const name=$('hotelName').value.trim()||'酒店'; const cny=n('hotelCny'); const qty=n('hotelQty')||1;
+    if(!cny) return $('hotelCny').focus(); state.hotel.push({name,cny,qty});
+    $('hotelName').value=''; $('hotelCny').value=''; $('hotelQty').value=1;
+  }
+  if(type==='flight'){
+    const name=$('flightName').value.trim()||'机票'; const cny=n('flightCny'); const qty=n('flightQty')||1;
+    if(!cny) return $('flightCny').focus(); state.flight.push({name,cny,qty});
+    $('flightName').value=''; $('flightCny').value=''; $('flightQty').value=1;
+  }
+  renderCostInputs(); save();
+}
+function delCost(type,i){state[type].splice(i,1);renderCostInputs();save();}
+function renderCostInputs(){
+  $('carList').innerHTML = state.car.map((x,i)=>`<div class="cost-item"><input value="${esc(x.name)}" oninput="state.car[${i}].name=this.value;save()"><input type="number" value="${x.eur}" oninput="state.car[${i}].eur=parseFloat(this.value)||0;save()"><input type="number" value="${x.days}" oninput="state.car[${i}].days=parseFloat(this.value)||1;save()"><button onclick="delCost('car',${i})">×</button></div>`).join('');
+  $('transferList').innerHTML = state.transfer.map((x,i)=>`<div class="cost-item"><input value="${esc(x.name)}" oninput="state.transfer[${i}].name=this.value;save()"><input type="number" value="${x.eur}" oninput="state.transfer[${i}].eur=parseFloat(this.value)||0;save()"><input type="number" value="${x.qty}" oninput="state.transfer[${i}].qty=parseFloat(this.value)||1;save()"><button onclick="delCost('transfer',${i})">×</button></div>`).join('');
+  $('ticketList').innerHTML = state.ticket.map((x,i)=>`<div class="cost-item ticket"><input value="${esc(x.name)}" oninput="state.ticket[${i}].name=this.value;save()"><select onchange="state.ticket[${i}].unit=this.value;save()"><option value="person"${x.unit==='person'?' selected':''}>€/人</option><option value="total"${x.unit==='total'?' selected':''}>€/总价</option></select><input type="number" value="${x.eur}" oninput="state.ticket[${i}].eur=parseFloat(this.value)||0;save()"><select onchange="state.ticket[${i}].cat=this.value;save()"><option${x.cat==='必打卡'?' selected':''}>必打卡</option><option${x.cat==='可选'?' selected':''}>可选</option><option${x.cat==='不含'?' selected':''}>不含</option></select><button onclick="delCost('ticket',${i})">×</button></div>`).join('');
+  $('deadheadList').innerHTML = (state.deadhead||[]).map((x,i)=>`<div class="cost-item"><input value="${esc(x.name)}" oninput="state.deadhead[${i}].name=this.value;save()"><input type="number" value="${x.eur}" oninput="state.deadhead[${i}].eur=parseFloat(this.value)||0;save()"><input type="number" value="${x.qty}" oninput="state.deadhead[${i}].qty=parseFloat(this.value)||1;save()"><button onclick="delCost('deadhead',${i})">×</button></div>`).join('');
+  $('lodgingList').innerHTML = (state.lodging||[]).map((x,i)=>`<div class="cost-item"><input value="${esc(x.name)}" oninput="state.lodging[${i}].name=this.value;save()"><input type="number" value="${x.eur}" oninput="state.lodging[${i}].eur=parseFloat(this.value)||0;save()"><input type="number" value="${x.qty}" oninput="state.lodging[${i}].qty=parseFloat(this.value)||1;save()"><button onclick="delCost('lodging',${i})">×</button></div>`).join('');
+  $('hotelList').innerHTML = (state.hotel||[]).map((x,i)=>`<div class="cost-item"><input value="${esc(x.name)}" oninput="state.hotel[${i}].name=this.value;save()"><input type="number" value="${x.cny}" oninput="state.hotel[${i}].cny=parseFloat(this.value)||0;save()"><input type="number" value="${x.qty}" oninput="state.hotel[${i}].qty=parseFloat(this.value)||1;save()"><button onclick="delCost('hotel',${i})">×</button></div>`).join('');
+  $('flightList').innerHTML = (state.flight||[]).map((x,i)=>`<div class="cost-item"><input value="${esc(x.name)}" oninput="state.flight[${i}].name=this.value;save()"><input type="number" value="${x.cny}" oninput="state.flight[${i}].cny=parseFloat(this.value)||0;save()"><input type="number" value="${x.qty}" oninput="state.flight[${i}].qty=parseFloat(this.value)||1;save()"><button onclick="delCost('flight',${i})">×</button></div>`).join('');
+}
+
+function conv(eur){return Math.ceil((eur||0) * markupRate() * 8.3);}
+function convRmb(cost){return Math.ceil((cost||0) * RMB_MARKUP);}
+function quoteCalc(){
+  const pax = n('people') || 1, days = n('days') || 1;
+  const car = state.car.reduce((s,x)=>s+conv(x.eur*x.days),0);
+  const transfer = state.transfer.reduce((s,x)=>s+conv(x.eur*x.qty),0);
+  const ticket = state.ticket.reduce((s,x)=>s+(x.cat==='不含'?0:conv(x.eur*(x.unit==='person'?pax:1))),0);
+  const deadhead = (state.deadhead||[]).reduce((s,x)=>s+conv(x.eur*x.qty),0);
+  const lodging = (state.lodging||[]).reduce((s,x)=>s+conv(x.eur*x.qty),0);
+  const hotel = (state.hotel||[]).reduce((s,x)=>s+convRmb(x.cny*x.qty),0);
+  const flight = (state.flight||[]).reduce((s,x)=>s+convRmb(x.cny*x.qty),0);
+  const service = Math.ceil((n('serviceRate')||0)*pax*days);
+  return {car,transfer,ticket,deadhead,lodging,hotel,flight,service,total:car+transfer+ticket+deadhead+lodging+hotel+flight+service};
+}
+
+function parseMust(){
+  return split($('mustSee').value).map(raw=>{
+    const parts = raw.split(/\s*[-—:：]\s*/);
+    return {city:parts.length>1?parts[0].trim():'', name:(parts[1]||parts[0]).trim(), raw};
+  });
+}
+function groupMustSeeByRoute(items,cities,dest){
+  const db = dbFor(dest), used = new Set(), groups = [];
+  cities.forEach(city=>{
+    const arr = items.filter(x => !used.has(x.name) && (x.city===city || x.raw.includes(city)));
+    if(arr.length){arr.forEach(x=>used.add(x.name)); groups.push({city,label:city+'核心景点',items:arr,note:'同城景点集中安排，减少绕路'});}
+  });
+  const farWords = ['凡尔赛','圣米歇尔','摩纳哥','埃兹','五渔村','比萨','庞贝','阿玛菲','卡普里','少女峰','马特洪峰','箱根','奈良'];
+  const far = items.filter(x => !used.has(x.name) && farWords.some(w=>x.name.includes(w)||x.raw.includes(w)));
+  if(far.length){far.forEach(x=>used.add(x.name)); groups.push({city:far[0].city||cities[0],label:'远郊/跨城单日',items:far,note:'远郊景点建议单独安排，避免和市区硬拼',long:true});}
+  const rest = items.filter(x=>!used.has(x.name));
+  for(let i=0;i<rest.length;i+=2) groups.push({city:rest[i].city||cities[i%cities.length]||dest,label:'必打卡景点',items:rest.slice(i,i+2),note:'未识别景点按每组2个分散安排'});
+  if(!groups.length){
+    (db.must||[]).slice(0,Math.min(6,Math.max(3,parseInt($('days').value)||3))).forEach((name,i)=>groups.push({city:cities[i%cities.length]||dest,label:'推荐景点',items:[{name}],note:'根据目的地常规亮点补充'}));
+  }
+  return groups;
+}
+function autoPace(days, mustCount, pref){
+  if(pref && pref!=='自动判断') return pref;
+  const per = mustCount / Math.max(days,1);
+  if(per <= 1.8) return '轻松';
+  if(per >= 3.4) return '紧凑';
+  return '标准';
+}
+function distribute(groups,days,pace){
+  const plan = Array.from({length:days},()=>[]);
+  const target = days<=2 ? [...Array(days).keys()] : [...Array(days-2).keys()].map(i=>i+1);
+  let pos=0, cap = pace==='轻松'?3:pace==='紧凑'?5:4;
+  groups.forEach(g=>{
+    let best = target[pos % target.length] ?? 0;
+    if(g.long){
+      const empty = target.find(i=>plan[i].length===0);
+      if(empty!==undefined) best=empty;
+    }else{
+      for(let j=0;j<target.length;j++){
+        const cand = target[(pos+j)%target.length];
+        const count = plan[cand].reduce((s,x)=>s+x.items.length,0);
+        if(count + g.items.length <= cap){best=cand;break;}
+      }
+    }
+    plan[best].push(g); pos++;
+  });
+  return plan;
+}
+function generateItinerary(){
+  const dest=$('destination').value.trim()||'目的地', db=dbFor(dest);
+  const days=Math.max(1,parseInt($('days').value)||1);
+  const cities=split($('cities').value).length?split($('cities').value):db.cities.slice(0,Math.min(3,days));
+  const must=parseMust();
+  const pace=autoPace(days,must.length,$('pace').value);
+  const groups=groupMustSeeByRoute(must,cities,dest);
+  const arranged=distribute(groups,days,pace);
+  const perCity=Math.ceil(days/Math.max(cities.length,1));
+  const dayCity=i=>cities[Math.min(Math.floor(i/perCity),cities.length-1)]||dest;
+  const start=$('startDate').value ? new Date($('startDate').value) : null;
+  const cards=[];
+  for(let i=0;i<days;i++){
+    const city=dayCity(i), gs=arranged[i]||[], isFirst=i===0, isLast=i===days-1;
+    const date=start?new Date(start.getTime()+i*86400000).toLocaleDateString('zh-CN',{month:'long',day:'numeric',weekday:'short'}):'';
+    let morning, afternoon, evening, note;
+    if(isFirst){morning='抵达'+city+'，专车接机/接站，入住后休整'; afternoon='轻量城市初印象，不安排重体力项目'; evening='安排欢迎晚餐或自由散步'; note='首日重点是恢复体力，不堆景点';}
+    else if(isLast){morning='酒店早餐后自由活动，补充购物或拍照'; afternoon='根据航班/车次安排送机/送站'; evening='返程'; note='返程日不塞重景点，降低误机风险';}
+    else if(gs.length){
+      const names=gs.flatMap(g=>g.items.map(x=>x.name));
+      morning='优先游览 '+names.slice(0,2).join('、');
+      afternoon=names.length>2?'继续顺路安排 '+names.slice(2).join('、'):'下午安排周边街区、美食或咖啡休息';
+      evening='晚餐后自由活动，保留弹性调整';
+      note=gs.map(g=>g.note).join('；') || '必打卡已分散安排';
+    }else{
+      const rec=(db.must||['城市精华','特色街区','观景点']);
+      morning='游览 '+(rec[i%rec.length]||city+'核心区');
+      afternoon='顺路安排老城/商圈/本地体验，避免来回折返';
+      evening='自由晚餐，可按客户兴趣安排夜景或特色餐厅';
+      note='作为弹性日，用来平衡整体节奏';
+    }
+    const count=(morning+afternoon).split(/[、,，]/).length;
+    const warn=count>(pace==='轻松'?4:pace==='标准'?5:6);
+    cards.push({day:i+1,date,city,morning,afternoon,evening,note,pace,warn});
+  }
+  const route=cities.join(' → ');
+  return {dest,days,cities,route,pace,cards,db};
+}
+function renderItinerary(it){
+  $('itineraryOut').innerHTML = `<div class="hint">路线：${esc(it.route)}｜自动判断节奏：${it.pace}｜原则：同城分组、远郊单独、每天最多 ${it.pace==='轻松'?'2-3':it.pace==='紧凑'?'4-5':'3-4'} 个重点，不走回头路。</div>`+
+  it.cards.map(d=>`<div class="day"><h3><span>D${d.day} ${esc(d.date)} ${esc(d.city)}</span><span class="badge${d.warn?' warn':''}">${d.warn?'略紧，建议精简':'节奏合理'}</span></h3><div class="body"><p><b>上午：</b>${esc(d.morning)}</p><p><b>下午：</b>${esc(d.afternoon)}</p><p><b>晚上：</b>${esc(d.evening)}</p><p><b>提示：</b>${esc(d.note)}</p></div></div>`).join('');
+}
+function renderQuote(){
+  const q=quoteCalc(), pax=n('people')||1;
+  const ticketNames=state.ticket.filter(x=>x.cat!=='不含').map(x=>x.name).join('、');
+  $('quoteOut').innerHTML = `<table><tbody>
+    <tr><td>专属包车服务</td><td class="num">${fmt(q.car)}</td></tr>
+    <tr><td>接送机服务</td><td class="num">${fmt(q.transfer)}</td></tr>
+    <tr><td>景点门票${ticketNames?'（'+esc(ticketNames)+'）':''}</td><td class="num">${fmt(q.ticket)}</td></tr>
+    <tr><td>空返/调度费</td><td class="num">${fmt(q.deadhead)}</td></tr>
+    <tr><td>司机住宿补贴</td><td class="num">${fmt(q.lodging)}</td></tr>
+    <tr><td>酒店</td><td class="num">${fmt(q.hotel)}</td></tr>
+    <tr><td>机票</td><td class="num">${fmt(q.flight)}</td></tr>
+    <tr><td>定制服务费</td><td class="num">${fmt(q.service)}</td></tr>
+  </tbody></table>
+  <div class="quote-total"><div>总报价</div><b>${fmt(q.total)}</b><div>人均 ${fmt(Math.ceil(q.total/pax))}</div></div>
+  <div class="hint">计算公式：欧元费用 × ${markupRate()} × 8.3；酒店/机票 = 人民币成本 × 1.15；定制师服务费固定 ¥100/人/天，不加价。${esc($('quoteNote').value||'')}</div>`;
+}
+function renderCopy(it){
+  const dest=it.dest, days=it.days, customer=$('customer').value, route=it.route, q=quoteCalc();
+  const styleMap = {
+    '高端':{tone:'私家定制', focus:'住宿、用车和每日节奏都会按舒适度优先，适合想省心高品质出行的客人。'},
+    '亲子':{tone:'亲子不累', focus:'每天控制重点景点数量，预留午休和临时调整时间，孩子和大人都不会太赶。'},
+    '情侣':{tone:'浪漫轻松', focus:'路线里会保留拍照、晚餐和散步时间，不是单纯赶景点。'},
+    '性价比':{tone:'高性价比', focus:'保留核心体验，把预算花在关键车程、门票和真正影响体验的地方。'}
+  };
+  const st = styleMap[customer] || styleMap['高端'];
+  const titles=[
+    `${dest}${days}天不走回头路定制｜全程包车轻松玩`,
+    `${route}｜${days}天${st.tone}路线，真的不用赶`,
+    `${dest}这样排才舒服｜避开折返的高端定制玩法`
+  ];
+  const points=[
+    `全程按 ${route} 顺路推进，不走回头路，减少无效车程。`,
+    `用车时间尽量控制在8-10小时内，行程强度更舒服。`,
+    `热门景点避开团队游客高峰，把体验感放在前面。`,
+    `包车、空返、司机住宿补贴、酒店、机票、门票和服务费拆开核算，价格结构透明。`,
+    st.focus
+  ];
+  const talk=`这个方案是按您这次的路线和需求重新优化过的，不是简单把景点堆在一起。我们会按 ${route} 顺路走，车程和每天节奏都控制在比较舒服的范围，必打卡景点也会分散到不同天，不会一天玩得特别累。\n\n相比跟团，这种私家定制的好处是时间更自由、停留更从容，也能避开很多团队游客高峰。相比自己临时安排，我们会提前把包车、空返、司机住宿补贴、酒店、机票、门票和服务细节都算清楚，落地执行会稳很多。\n\n目前这版总价约 ${fmt(q.total)}，人均 ${fmt(Math.ceil(q.total/(n('people')||1)))}。如果您觉得方向OK，我可以先帮您把车和关键资源锁一下，旺季资源会越来越紧。`;
+  $('copyOut').innerHTML = `<div class="copybox"><b>小红书标题</b>\n${titles.map((x,i)=>`${i+1}. ${x}`).join('\n')}\n\n<b>卖点文案</b>\n${points.map(x=>'• '+x).join('\n')}\n\n<b>客户话术</b>\n${talk}</div>`;
+}
+function adjustByClientType(type, silent){
+  if(type === '高端'){
+    $('serviceRate').value = 100;
+    $('markup').value = 1.35;
+  }
+  if(type === '亲子'){
+    $('serviceRate').value = 100;
+    $('markup').value = 1.32;
+    const dest = $('destination').value || '意大利';
+    const k = Object.keys(FAMILY_TICKET_SUGGEST).find(x => dest.includes(x) || x.includes(dest));
+    const suggestions = FAMILY_TICKET_SUGGEST[k] || ['亲子友好体验'];
+    suggestions.forEach(name => {
+      if(!state.ticket.some(t => t.name === name)) state.ticket.push({name, eur: 0, unit:'total', cat:'不含'});
+    });
+  }
+  if(type === '情侣'){
+    $('serviceRate').value = 100;
+    $('markup').value = 1.35;
+  }
+  if(type === '性价比'){
+    $('serviceRate').value = 100;
+    $('markup').value = 1.25;
+  }
+  renderCostInputs();
+  if(!silent) generateAll();
+}
+function generateAll(){
+  updateTicketSelect();
+  const route = $('routeLine').value.trim();
+  if(route && (state.car.length === 0 || state.autoRoute !== route || !state.lodging?.length)) autoGenerateFromRoute(route, true);
+  adjustByClientType($('customer').value, true);
+  const it=generateItinerary();renderItinerary(it);renderQuote();renderCopy(it);save();
+}
+function allText(){return [$('itineraryOut').innerText,$('quoteOut').innerText,$('copyOut').innerText].join('\n\n');}
+function copyAll(){const t=allText(); if(navigator.clipboard) navigator.clipboard.writeText(t); else {const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();}}
+function exportWord(){
+  generateAll();
+  const title = (($('destination').value || '旅行定制方案') + '定制方案').replace(/[\\/:*?"<>|]/g,'');
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<style>
+body{font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;color:#1f2933;line-height:1.7}
+h1{font-size:24px;color:#9a3f21;border-bottom:2px solid #d8d0c3;padding-bottom:10px}
+h2{font-size:18px;color:#b4532a;margin-top:24px}
+table{width:100%;border-collapse:collapse;margin:10px 0}
+td,th{border:1px solid #d8d0c3;padding:8px;text-align:left}
+.day,.copybox,.quote-total,.hint{border:1px solid #d8d0c3;padding:10px;margin:10px 0}
+.quote-total{background:#f4f1ea}
+.num{text-align:right}
+</style></head>
+<body>
+<h1>${esc($('destination').value || '旅行定制方案')}</h1>
+<p>人数：${esc($('people').value)} 人　天数：${esc($('days').value)} 天　客户类型：${esc($('customer').value)}</p>
+<h2>一、行程方案</h2>${$('itineraryOut').innerHTML}
+<h2>二、报价方案</h2>${$('quoteOut').innerHTML}
+<h2>三、成交文案</h2>${$('copyOut').innerHTML}
+</body></html>`;
+  const blob = new Blob(['\ufeff', html], {type:'application/msword;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = title + '.doc';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+function save(){
+  const ids=['destination','days','startDate','people','customer','budget','routeLine','cities','mustSee','pace','season','serviceRate','markup','quoteNote'];
+  const form={}; ids.forEach(id=>{ if($(id)) form[id]=$(id).value; });
+  localStorage.setItem('travelUnifiedWorkbench',JSON.stringify({form,state}));
+}
+function restore(){
+  try{const raw=localStorage.getItem('travelUnifiedWorkbench'); if(!raw)return; const data=JSON.parse(raw); Object.entries(data.form||{}).forEach(([id,v])=>{if($(id))$(id).value=v}); state=Object.assign({car:[],transfer:[],ticket:[],deadhead:[],lodging:[],hotel:[],flight:[],autoRoute:''}, data.state||{});}catch(e){}
+}
+function clearAll(){if(!confirm('确认清空当前工作台？'))return;localStorage.removeItem('travelUnifiedWorkbench');location.reload();}
+document.querySelectorAll('input,textarea,select').forEach(el=>{
+  const handler=()=>{ if(el.id==='season') state.autoRoute=''; save(); if(['destination','cities','routeLine'].includes(el.id)) updateTicketSelect(); };
+  el.addEventListener('input',handler); el.addEventListener('change',handler);
+});
+restore(); renderCostInputs(); updateTicketSelect(); generateAll();
+</script>
+</body>
+</html>
